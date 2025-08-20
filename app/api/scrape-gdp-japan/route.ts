@@ -32,46 +32,35 @@ export async function GET() {
 
     // Obtener todo el texto del cuerpo de la página para buscar los valores
     const pageText = $("body").text();
-    // Para depuración: console.log("Texto completo de la página (primeros 1000 caracteres):", pageText.substring(0, 1000));
 
-    // --- Mejorar la extracción de actualValue ---
-    // 1. Buscar "flat" o "0%"
-    if (pageText.includes("was flat in")) {
-      actualValue = 0;
-    } else {
-      // 2. Buscar patrones como "grew X%", "decreased X%", "fell by X%", "shrank by X%"
-      const actualMatch = pageText.match(
-        /(?:grew|rose|increased|decreased|fell by|shrank by)\s+([\d.-]+?)%/i
-      );
-      if (actualMatch && actualMatch[1]) {
-        actualValue = parseFloat(actualMatch[1]);
-      }
+    // --- Lógica de Extracción Mejorada ---
+
+    // 1. Búsqueda exhaustiva del Valor Actual
+    // Intentamos buscar "grew X%", "rose X%", "decreased X%", etc.
+    const actualMatch = pageText.match(
+      /(?:grew|rose|increased|decreased|fell by|shrank by)\s+([\d.-]+?)%/i
+    );
+    if (actualMatch && actualMatch[1]) {
+      actualValue = parseFloat(actualMatch[1]);
+    } else if (pageText.includes("was flat in")) {
+      actualValue = 0; // Capturar el caso especial "was flat"
     }
 
-    // --- Mejorar la extracción de forecastValue ---
-    // Buscar "estimate of a X% contraction" o "estimate of a X% growth"
+    // 2. Búsqueda exhaustiva del Valor de Previsión (Forecast)
+    // Se agregan nuevas palabras clave como "consensus of" y "stood at"
     const forecastMatch = pageText.match(
-      /(?:flash estimate of a|estimate of a)\s+([\d.-]+?)%\s+(?:contraction|growth)/i
+      /(?:flash estimate of a|estimate of a|consensus of|stood at|forecast of a|beating expectations of a)\s+([\d.-]+?)%/i
     );
     if (forecastMatch && forecastMatch[1]) {
       forecastValue = parseFloat(forecastMatch[1]);
-      // Si es una contracción y el número es positivo, lo hacemos negativo
+      // Ajustar si la previsión indica una contracción
       if (forecastMatch[0].includes("contraction") && forecastValue > 0) {
         forecastValue *= -1;
       }
-    } else {
-      // Fallback para otros patrones de previsión si el anterior falla
-      const genericForecastMatch = pageText.match(
-        /(?:expectations of a|forecast of a|beating expectations of a)\s+([\d.-]+?)%/i
-      );
-      if (genericForecastMatch && genericForecastMatch[1]) {
-        forecastValue = parseFloat(genericForecastMatch[1]);
-      }
     }
 
-
-    // Fallback para buscar en tablas si las expresiones regulares no encuentran los valores
-    // Esta parte es crucial y a menudo más fiable si el formato del texto cambia.
+    // Fallback: Si las expresiones regulares no encuentran los valores, se busca en la tabla
+    // Esto es un método muy fiable si la estructura de la tabla se mantiene.
     $(".table-responsive .table-hover tbody tr").each((i, el) => {
       const variableName = $(el).find("td a").first().text().trim();
       if (variableName.includes("GDP Growth Rate")) {
@@ -79,13 +68,12 @@ export async function GET() {
           .find("td")
           .map((j, td) => $(td).text().trim())
           .get();
-        // Asumiendo que el valor actual está en values[1] y la previsión en values[2]
-        if (values[1] && actualValue === null) { // Solo si actualValue no se encontró antes
+        if (values[1] && actualValue === null) {
           actualValue = parseFloat(
             values[1].replace("%", "").replace(",", ".")
           );
         }
-        if (values[2] && forecastValue === null) { // Solo if forecastValue no se encontró antes
+        if (values[2] && forecastValue === null) {
           forecastValue = parseFloat(
             values[2].replace("%", "").replace(",", ".")
           );
@@ -94,6 +82,7 @@ export async function GET() {
       }
     });
 
+    // Manejar errores si los valores no se encuentran
     if (actualValue === null || forecastValue === null) {
       console.warn(
         "No se pudieron encontrar ambos valores (actual y previsión) para el PIB de Japón. Actual:", actualValue, "Forecast:", forecastValue
@@ -109,6 +98,7 @@ export async function GET() {
       );
     }
 
+    // Devolver la respuesta exitosa
     return NextResponse.json<ScrapedData>({
       variable: "Crecimiento del PIB",
       actualValue,

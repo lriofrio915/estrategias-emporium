@@ -12,47 +12,31 @@ import {
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isOperativaDropdownOpen, setIsOperativaDropdownOpen] = useState(false);
-  const [isEstrategiasDropdownOpen, setIsEstrategiasDropdownOpen] =
-    useState(false);
-  const [isInformesDropdownOpen, setIsInformesDropdownOpen] = useState(false);
-  const [isSesgoDiarioDropdownOpen, setIsSesgoDiarioDropdownOpen] =
-    useState(false);
-  const [isHerramientasDropdownOpen, setIsHerramientasDropdownOpen] =
-    useState(false);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
-  const operativaDropdownRef = useRef<HTMLDivElement>(null);
-  const estrategiasDropdownRef = useRef<HTMLDivElement>(null);
-  const informesDropdownRef = useRef<HTMLDivElement>(null);
-  const sesgoDiarioDropdownRef = useRef<HTMLDivElement>(null);
-  const herramientasDropdownRef = useRef<HTMLDivElement>(null);
+  const navbarRef = useRef<HTMLDivElement>(null);
+
+  // Usamos un solo estado para manejar qué menú desplegable está abierto.
+  // Esto simplifica la lógica de cierre y evita conflictos.
+  const toggleDropdown = (dropdownName: string) => {
+    setOpenDropdown(openDropdown === dropdownName ? null : dropdownName);
+    // Aseguramos que el menú móvil se cierre al interactuar con un dropdown de escritorio
+    if (isMobileMenuOpen) {
+      setIsMobileMenuOpen(false);
+    }
+  };
 
   const closeAllMenus = () => {
     setIsMobileMenuOpen(false);
-    setIsOperativaDropdownOpen(false);
-    setIsEstrategiasDropdownOpen(false);
-    setIsInformesDropdownOpen(false);
-    setIsSesgoDiarioDropdownOpen(false);
-    setIsHerramientasDropdownOpen(false);
+    setOpenDropdown(null);
   };
 
+  // Cierra los menús si el usuario hace clic fuera del navbar
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
       if (
-        operativaDropdownRef.current &&
-        !operativaDropdownRef.current.contains(target) &&
-        estrategiasDropdownRef.current &&
-        !estrategiasDropdownRef.current.contains(target) &&
-        informesDropdownRef.current &&
-        !informesDropdownRef.current.contains(target) &&
-        sesgoDiarioDropdownRef.current &&
-        !sesgoDiarioDropdownRef.current.contains(target) &&
-        herramientasDropdownRef.current &&
-        !herramientasDropdownRef.current.contains(target) &&
-        !(event.target as HTMLElement).closest(
-          'button[aria-label="Toggle navigation"]'
-        )
+        navbarRef.current &&
+        !navbarRef.current.contains(event.target as Node)
       ) {
         closeAllMenus();
       }
@@ -64,20 +48,20 @@ export default function Navbar() {
     };
   }, []);
 
+  // Controla el scroll del body cuando el menú móvil está abierto
   useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+    document.body.style.overflow = isMobileMenuOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
   }, [isMobileMenuOpen]);
 
   return (
-    <nav className="fixed top-0 left-0 w-full bg-[#0A2342] py-4 text-white shadow-lg z-50">
-      <div className="container mx-auto flex justify-between items-center">
+    <nav
+      ref={navbarRef}
+      className="fixed top-0 left-0 w-full bg-[#0A2342] py-4 text-white shadow-lg z-50"
+    >
+      <div className="container mx-auto flex justify-between items-center px-4 md:px-6">
         {/* Logo */}
         <Link
           href="/"
@@ -96,12 +80,7 @@ export default function Navbar() {
         {/* Botón de Hamburguesa para Móvil */}
         <div className="md:hidden">
           <button
-            onClick={() => {
-              setIsMobileMenuOpen(!isMobileMenuOpen);
-              if (!isMobileMenuOpen) {
-                closeAllMenus();
-              }
-            }}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="text-white hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 p-1 rounded"
             aria-label="Toggle navigation"
           >
@@ -116,25 +95,19 @@ export default function Navbar() {
         {/* Enlaces de Navegación para Escritorio */}
         <div className="hidden md:flex space-x-6 items-center">
           {/* Menú desplegable de Operativa */}
-          <div className="relative" ref={operativaDropdownRef}>
+          <div className="relative">
             <button
-              onClick={() => {
-                setIsOperativaDropdownOpen(!isOperativaDropdownOpen);
-                setIsEstrategiasDropdownOpen(false);
-                setIsInformesDropdownOpen(false);
-                setIsSesgoDiarioDropdownOpen(false);
-                setIsHerramientasDropdownOpen(false);
-              }}
+              onClick={() => toggleDropdown("operativa")}
               className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
             >
               Operativas
-              {isOperativaDropdownOpen ? (
+              {openDropdown === "operativa" ? (
                 <ChevronUpIcon className="ml-1 h-4 w-4" />
               ) : (
                 <ChevronDownIcon className="ml-1 h-4 w-4" />
               )}
             </button>
-            {isOperativaDropdownOpen && (
+            {openDropdown === "operativa" && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                 <Link
                   href="/operativas/aluisa-diego"
@@ -169,25 +142,19 @@ export default function Navbar() {
           </div>
 
           {/* Menú desplegable de Estrategias */}
-          <div className="relative" ref={estrategiasDropdownRef}>
+          <div className="relative">
             <button
-              onClick={() => {
-                setIsEstrategiasDropdownOpen(!isEstrategiasDropdownOpen);
-                setIsOperativaDropdownOpen(false);
-                setIsInformesDropdownOpen(false);
-                setIsSesgoDiarioDropdownOpen(false);
-                setIsHerramientasDropdownOpen(false);
-              }}
+              onClick={() => toggleDropdown("estrategias")}
               className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
             >
               Estrategias
-              {isEstrategiasDropdownOpen ? (
+              {openDropdown === "estrategias" ? (
                 <ChevronUpIcon className="ml-1 h-4 w-4" />
               ) : (
                 <ChevronDownIcon className="ml-1 h-4 w-4" />
               )}
             </button>
-            {isEstrategiasDropdownOpen && (
+            {openDropdown === "estrategias" && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                 <Link
                   href="/manuales/Nasdaq"
@@ -215,25 +182,19 @@ export default function Navbar() {
           </div>
 
           {/* Menú desplegable de Informes */}
-          <div className="relative" ref={informesDropdownRef}>
+          <div className="relative">
             <button
-              onClick={() => {
-                setIsInformesDropdownOpen(!isInformesDropdownOpen);
-                setIsOperativaDropdownOpen(false);
-                setIsEstrategiasDropdownOpen(false);
-                setIsSesgoDiarioDropdownOpen(false);
-                setIsHerramientasDropdownOpen(false);
-              }}
+              onClick={() => toggleDropdown("informes")}
               className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
             >
               Informes
-              {isInformesDropdownOpen ? (
+              {openDropdown === "informes" ? (
                 <ChevronUpIcon className="ml-1 h-4 w-4" />
               ) : (
                 <ChevronDownIcon className="ml-1 h-4 w-4" />
               )}
             </button>
-            {isInformesDropdownOpen && (
+            {openDropdown === "informes" && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                 <Link
                   href="/informes/NQ"
@@ -260,26 +221,20 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Menú desplegable de Sesgo Diario (antes Herramientas Macro) */}
-          <div className="relative" ref={sesgoDiarioDropdownRef}>
+          {/* Menú desplegable de Sesgo Diario */}
+          <div className="relative">
             <button
-              onClick={() => {
-                setIsSesgoDiarioDropdownOpen(!isSesgoDiarioDropdownOpen);
-                setIsOperativaDropdownOpen(false);
-                setIsEstrategiasDropdownOpen(false);
-                setIsInformesDropdownOpen(false);
-                setIsHerramientasDropdownOpen(false);
-              }}
+              onClick={() => toggleDropdown("sesgoDiario")}
               className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
             >
               Sesgo Diario
-              {isSesgoDiarioDropdownOpen ? (
+              {openDropdown === "sesgoDiario" ? (
                 <ChevronUpIcon className="ml-1 h-4 w-4" />
               ) : (
                 <ChevronDownIcon className="ml-1 h-4 w-4" />
               )}
             </button>
-            {isSesgoDiarioDropdownOpen && (
+            {openDropdown === "sesgoDiario" && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                 <Link
                   href="/sentimiento-macro/NQ"
@@ -327,26 +282,20 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Nuevo Menú desplegable de Herramientas */}
-          <div className="relative" ref={herramientasDropdownRef}>
+          {/* Menú desplegable de Herramientas */}
+          <div className="relative">
             <button
-              onClick={() => {
-                setIsHerramientasDropdownOpen(!isHerramientasDropdownOpen);
-                setIsOperativaDropdownOpen(false);
-                setIsEstrategiasDropdownOpen(false);
-                setIsInformesDropdownOpen(false);
-                setIsSesgoDiarioDropdownOpen(false);
-              }}
+              onClick={() => toggleDropdown("herramientas")}
               className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
             >
               Herramientas
-              {isHerramientasDropdownOpen ? (
+              {openDropdown === "herramientas" ? (
                 <ChevronUpIcon className="ml-1 h-4 w-4" />
               ) : (
                 <ChevronDownIcon className="ml-1 h-4 w-4" />
               )}
             </button>
-            {isHerramientasDropdownOpen && (
+            {openDropdown === "herramientas" && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                 <Link
                   href="/cot-informatico"
