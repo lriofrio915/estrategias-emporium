@@ -250,70 +250,10 @@ export default function Navbar() {
                 >
                   S&P 500
                 </Link>
-                <Link
-                  href="/sentimiento-macro/USDJPY"
-                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                  onClick={closeAllMenus}
-                >
-                  USDJPY
-                </Link>
-                <Link
-                  href="/sentimiento-macro/USDCHF"
-                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                  onClick={closeAllMenus}
-                >
-                  USDCHF
-                </Link>
-                <Link
-                  href="/sentimiento-macro/USDCAD"
-                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                  onClick={closeAllMenus}
-                >
-                  USDCAD
-                </Link>
-                <Link
-                  href="/sentimiento-macro/EURUSD"
-                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                  onClick={closeAllMenus}
-                >
-                  EURUSD
-                </Link>
               </div>
             )}
           </div>
-
-          {/* Menú desplegable de Herramientas */}
-          <div className="relative">
-            <button
-              onClick={() => toggleDropdown("herramientas")}
-              className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
-            >
-              Herramientas
-              {openDropdown === "herramientas" ? (
-                <ChevronUpIcon className="ml-1 h-4 w-4" />
-              ) : (
-                <ChevronDownIcon className="ml-1 h-4 w-4" />
-              )}
-            </button>
-            {openDropdown === "herramientas" && (
-              <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
-                <Link
-                  href="/cot-informatico"
-                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                  onClick={closeAllMenus}
-                >
-                  Cot Informático
-                </Link>
-                <Link
-                  href="/sentimiento-retail"
-                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                  onClick={closeAllMenus}
-                >
-                  Sentimiento Retail
-                </Link>
-              </div>
-            )}
-          </div>
+          {/* El menú desplegable de Herramientas ha sido eliminado */}
         </div>
       </div>
 
@@ -433,55 +373,7 @@ export default function Navbar() {
           >
             S&P 500
           </Link>
-          <Link
-            href="/sentimiento-macro/USDJPY"
-            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-            onClick={closeAllMenus}
-          >
-            USDJPY
-          </Link>
-          <Link
-            href="/sentimiento-macro/USDCHF"
-            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-            onClick={closeAllMenus}
-          >
-            USDCHF
-          </Link>
-          <Link
-            href="/sentimiento-macro/USDCAD"
-            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-            onClick={closeAllMenus}
-          >
-            USDCAD
-          </Link>
-          <Link
-            href="/sentimiento-macro/EURUSD"
-            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-            onClick={closeAllMenus}
-          >
-            EURUSD
-          </Link>
-
-          <hr className="border-gray-700 my-2" />
-
-          {/* Nuevo Menú de Herramientas para móvil */}
-          <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
-            Herramientas:
-          </span>
-          <Link
-            href="/cot-informatico"
-            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-            onClick={closeAllMenus}
-          >
-            Cot Informático
-          </Link>
-          <Link
-            href="/sentimiento-retail"
-            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-            onClick={closeAllMenus}
-          >
-            Sentimiento Retail
-          </Link>
+          {/* Los enlaces de pares de divisas han sido eliminados */}
         </div>
       </div>
     </nav>

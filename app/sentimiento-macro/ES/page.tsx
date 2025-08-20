@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import Image from "next/image"; // Importado el componente Image de Next.js para optimización
+import Image from "next/image";
 
-// Definición de tipos para los datos de la tabla
+// Definición de tipos
 interface MacroEconomicData {
   category: string;
   variable: string;
@@ -11,22 +11,19 @@ interface MacroEconomicData {
   forecastValue: number | null | undefined;
   unit: string;
   source: string;
-  isNegativeForNasdaq: boolean; // Cambiado a isNegativeForIndex (nombre de propiedad en el código original, se mantiene por compatibilidad)
+  isNegativeForIndex: boolean; // Cambiado de isNegativeForNasdaq
 }
 
-// Definición de tipos para la respuesta general de la API
-// Puede incluir forecastValue opcionalmente
 interface ApiResponseData {
   variable: string;
   actualValue: number | null;
-  forecastValue?: number | null; // Hacer forecastValue opcional
+  forecastValue?: number | null;
   error?: string;
-  // Propiedades adicionales para COT que no tienen forecastValue
   longChange?: number | null;
   shortChange?: number | null;
 }
 
-// Componente para el tooltip con dirección personalizable
+// Componente Tooltip
 const Tooltip: React.FC<{
   content: string;
   children: React.ReactNode;
@@ -61,7 +58,7 @@ const Tooltip: React.FC<{
   );
 };
 
-// Componente para una fila de la tabla
+// Componente TableRow
 const TableRow: React.FC<{
   data: MacroEconomicData;
   calculateScore: (data: MacroEconomicData) => number;
@@ -85,11 +82,10 @@ const TableRow: React.FC<{
 }) => {
   const score = useMemo(() => calculateScore(data), [data, calculateScore]);
 
-  // Determina el color de la puntuación
+  // Determina el color de la puntuación individual
   const scoreColorClass = useMemo(() => {
-    if (score === 1)
-      return "bg-green-100 text-green-800 border border-green-200";
-    if (score === -1) return "bg-red-100 text-red-800 border border-red-200";
+    if (score > 0) return "bg-green-100 text-green-800 border border-green-200";
+    if (score < 0) return "bg-red-100 text-red-800 border border-red-200";
     return "bg-gray-100 text-gray-800 border border-gray-200";
   }, [score]);
 
@@ -109,10 +105,6 @@ const TableRow: React.FC<{
       "Porcentaje de la fuerza laboral desempleada. Un desempleo bajo generalmente es positivo, pero demasiado bajo puede generar presiones inflacionarias.",
     "Tasa de Interés":
       "Tasa establecida por la Fed. Tasas bajas benefician al S&P 500 porque reducen el costo de los préstamos para las empresas y hacen que el rendimiento de los bonos sea menos atractivo.",
-    "Sentimiento COT Large Speculators":
-      "Posicionamiento de los grandes especuladores en futuros del S&P 500. Un valor positivo alto sugiere expectativas alcistas por parte de actores institucionales.",
-    "Sentimiento COT Small Traders":
-      "Posicionamiento de pequeños traders en futuros del S&P 500. Suele ser un indicador contrario: cuando los pequeños traders son muy alcistas, puede ser señal de mercado sobrecomprado.",
     "Sentimiento de las 7 Magníficas":
       "Análisis de precio de las 7 acciones tecnológicas más grandes (Apple, Microsoft, Amazon, etc.). Su influencia se extiende al S&P 500 dada su capitalización de mercado.",
     Estacionalidad:
@@ -152,14 +144,11 @@ const TableRow: React.FC<{
           {data.variable}
         </Tooltip>
       </td>
-      {/* Lógica para unificar celdas de Valor Actual y Previsión para Sentimiento COT, 7 Magníficas y Estacionalidad */}
-      {data.variable === "Sentimiento COT Large Speculators" ||
-      data.variable === "Sentimiento COT Small Traders" ||
-      data.variable === "Sentimiento de las 7 Magníficas" ||
+      {/* Lógica para unificar celdas de Valor Actual y Previsión para Sentimiento de las 7 Magníficas, Estacionalidad y Gráfica Diaria */}
+      {data.variable === "Sentimiento de las 7 Magníficas" ||
       data.variable === "Estacionalidad" ||
       data.variable === "Gráfica Diaria" ? (
         <td className="py-3 px-4 text-sm text-gray-700 text-center" colSpan={2}>
-          {/* Renderizar el select para Gráfica Diaria */}
           {data.variable === "Gráfica Diaria" ? (
             <select
               id="dailyChartSentiment"
@@ -169,7 +158,6 @@ const TableRow: React.FC<{
                 setDailyChartManualInput(
                   e.target.value as "Alcista" | "Neutro" | "Bajista"
                 );
-                // Actualiza inmediatamente el valor de la gráfica diaria en los datos de la tabla
                 const scoreValue =
                   e.target.value === "Alcista"
                     ? 1
@@ -178,8 +166,6 @@ const TableRow: React.FC<{
                     : e.target.value === "Bajista"
                     ? -1
                     : null;
-
-                // Llamar a setMacroEconomicData para actualizar solo esta fila
                 setMacroEconomicData((prevData: MacroEconomicData[]) =>
                   prevData.map((item: MacroEconomicData) =>
                     item.variable === "Gráfica Diaria"
@@ -196,8 +182,10 @@ const TableRow: React.FC<{
               <option value="Neutro">Neutro</option>
               <option value="Bajista">Bajista</option>
             </select>
-          ) : // Renderizado normal para otras variables unificadas
-          data.actualValue !== null ? (
+          ) : data.variable === "Sentimiento de las 7 Magníficas" ? (
+            // Si es "Sentimiento de las 7 Magníficas", se muestra un espacio vacío
+            <span className="text-gray-400"></span> // Espacio vacío
+          ) : data.actualValue !== null ? (
             `${data.actualValue}${data.unit}`
           ) : (
             <span className="text-gray-400">Cargando...</span>
@@ -224,8 +212,6 @@ const TableRow: React.FC<{
       >
         {data.actualValue !== null &&
         ((data.forecastValue !== null && data.forecastValue !== undefined) ||
-          data.variable === "Sentimiento COT Large Speculators" ||
-          data.variable === "Sentimiento COT Small Traders" ||
           data.variable === "Sentimiento de las 7 Magníficas" ||
           data.variable === "Estacionalidad" ||
           data.variable === "Gráfica Diaria")
@@ -262,8 +248,7 @@ const TableRow: React.FC<{
 
 // Componente principal de la tabla
 const SP500SentimentTable: React.FC = () => {
-  // Renamed to SP500SentimentTable
-  // Datos de estacionalidad hardcodeados basados en la imagen "image_43fb89.png" para S&P 500
+  // Datos de estacionalidad hardcodeados para S&P 500
   const seasonalityData = useMemo(
     () => ({
       Jan: 1,
@@ -284,9 +269,9 @@ const SP500SentimentTable: React.FC = () => {
 
   // Función para obtener el valor de estacionalidad del mes actual
   const getSeasonalityForCurrentMonth = useCallback(() => {
-    const currentMonth = new Date().toLocaleString("en-us", { month: "short" }); // Ej: 'Aug'
+    const currentMonth = new Date().toLocaleString("en-us", { month: "short" });
     const monthKey =
-      currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1); // Ej: 'Aug'
+      currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1);
     return seasonalityData[monthKey as keyof typeof seasonalityData] || 0;
   }, [seasonalityData]);
 
@@ -300,7 +285,7 @@ const SP500SentimentTable: React.FC = () => {
         forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/gdp-growth",
-        isNegativeForNasdaq: false, // Ahora isNegativeForIndex
+        isNegativeForIndex: false,
       },
       {
         category: "MACRO",
@@ -309,7 +294,7 @@ const SP500SentimentTable: React.FC = () => {
         forecastValue: null,
         unit: "",
         source: "https://tradingeconomics.com/united-states/manufacturing-pmi",
-        isNegativeForNasdaq: false,
+        isNegativeForIndex: false,
       },
       {
         category: "MACRO",
@@ -318,7 +303,7 @@ const SP500SentimentTable: React.FC = () => {
         forecastValue: null,
         unit: "",
         source: "https://tradingeconomics.com/united-states/services-pmi",
-        isNegativeForNasdaq: false,
+        isNegativeForIndex: false,
       },
       {
         category: "MACRO",
@@ -327,7 +312,7 @@ const SP500SentimentTable: React.FC = () => {
         forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/retail-sales",
-        isNegativeForNasdaq: false,
+        isNegativeForIndex: false,
       },
       {
         category: "MACRO",
@@ -336,7 +321,7 @@ const SP500SentimentTable: React.FC = () => {
         forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/inflation-cpi",
-        isNegativeForNasdaq: true,
+        isNegativeForIndex: true,
       },
       {
         category: "MACRO",
@@ -345,7 +330,7 @@ const SP500SentimentTable: React.FC = () => {
         forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/unemployment-rate",
-        isNegativeForNasdaq: true,
+        isNegativeForIndex: true,
       },
       {
         category: "MACRO",
@@ -354,35 +339,17 @@ const SP500SentimentTable: React.FC = () => {
         forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/interest-rate",
-        isNegativeForNasdaq: false,
+        isNegativeForIndex: false,
       },
       // Datos de Sentimiento
       {
         category: "SENTIMIENTO",
-        variable: "Sentimiento COT Large Speculators",
-        actualValue: null, // Ahora se obtiene de la API
-        forecastValue: undefined,
-        unit: "%",
-        source: "https://insider-week.com/en/cot/",
-        isNegativeForNasdaq: false,
-      },
-      {
-        category: "SENTIMIENTO",
-        variable: "Sentimiento COT Small Traders",
-        actualValue: null, // Ahora se obtiene de la API
-        forecastValue: undefined,
-        unit: "%",
-        source: "https://insider-week.com/en/cot/",
-        isNegativeForNasdaq: false,
-      },
-      {
-        category: "SENTIMIENTO",
         variable: "Sentimiento de las 7 Magníficas",
-        actualValue: null, // Valor temporal, se actualizará con el score total
+        actualValue: null, // Valor numérico directo de -7 a 7
         forecastValue: undefined,
-        unit: "%",
+        unit: "", // Unidad vacía para mostrar solo el número
         source: "Consolidado de Yahoo Finance",
-        isNegativeForNasdaq: false,
+        isNegativeForIndex: false,
       },
       // Datos Técnicos
       {
@@ -391,17 +358,17 @@ const SP500SentimentTable: React.FC = () => {
         actualValue: null, // Se llenará con el valor del mes actual
         forecastValue: undefined,
         unit: "%",
-        source: "https://wegcapital.cl/noticia/estacionalidad", // Fuente actualizada
-        isNegativeForNasdaq: false,
+        source: "https://wegcapital.cl/noticia/estacionalidad",
+        isNegativeForIndex: false,
       },
       {
         category: "TÉCNICOS",
         variable: "Gráfica Diaria",
-        actualValue: null,
+        actualValue: null, // Valor inicial null, se llenará con la entrada manual
         forecastValue: undefined,
         unit: "",
         source: "Entrada Manual",
-        isNegativeForNasdaq: false,
+        isNegativeForIndex: false,
       },
     ],
     []
@@ -419,28 +386,11 @@ const SP500SentimentTable: React.FC = () => {
 
   // Función para calcular la puntuación de una variable
   const calculateScore = useCallback((data: MacroEconomicData): number => {
-    // Lógica especial para Sentimiento COT (Large Speculators)
-    if (data.variable === "Sentimiento COT Large Speculators") {
-      if (data.actualValue === null) return 0;
-      if (data.actualValue > 10) return 1;
-      if (data.actualValue < -10) return -1;
-      return 0;
-    }
-
-    // Lógica especial para Sentimiento COT Small Traders
-    if (data.variable === "Sentimiento COT Small Traders") {
-      if (data.actualValue === null) return 0;
-      if (data.actualValue < -10) return 1;
-      if (data.actualValue > 10) return -1;
-      return 0;
-    }
-
     // Lógica especial para Sentimiento de las 7 Magníficas
     if (data.variable === "Sentimiento de las 7 Magníficas") {
       if (data.actualValue === null) return 0;
-      if (data.actualValue > 0) return 1;
-      if (data.actualValue < 0) return -1;
-      return 0;
+      // Retornar directamente el valor numérico de la API (-7 a 7)
+      return data.actualValue;
     }
 
     // Lógica especial para Estacionalidad
@@ -454,10 +404,10 @@ const SP500SentimentTable: React.FC = () => {
     // Lógica especial para Gráfica Diaria (entrada manual)
     if (data.variable === "Gráfica Diaria") {
       if (data.actualValue === null) return 0;
-      if (data.actualValue === 1) return 1;
-      if (data.actualValue === -1) return -1;
-      if (data.actualValue === 0) return 0;
-      return 0;
+      if (data.actualValue === 1) return 1; // Alcista
+      if (data.actualValue === -1) return -1; // Bajista
+      if (data.actualValue === 0) return 0; // Neutro
+      return 0; // Fallback
     }
 
     // Para otras variables que requieren forecastValue
@@ -469,15 +419,15 @@ const SP500SentimentTable: React.FC = () => {
       return 0;
     }
 
-    const { actualValue, forecastValue, isNegativeForNasdaq } = data; // isNegativeForIndex here too
+    const { actualValue, forecastValue, isNegativeForIndex } = data; // Usar isNegativeForIndex
 
     // Lógica estándar para otras variables
     if (actualValue > forecastValue) {
-      return isNegativeForNasdaq ? -1 : 1;
+      return isNegativeForIndex ? -1 : 1;
     } else if (actualValue < forecastValue) {
-      return isNegativeForNasdaq ? 1 : -1;
+      return isNegativeForIndex ? 1 : -1;
     } else {
-      return 0;
+      return 0; // Neutral
     }
   }, []);
 
@@ -510,7 +460,7 @@ const SP500SentimentTable: React.FC = () => {
   useEffect(() => {
     const loadAllData = async () => {
       setIsLoading(true);
-      setError(null);
+      setError(null); // Resetear errores al inicio de una nueva carga
       setIsCalculatingBias(true); // Se activa solo para la carga inicial de APIs
 
       const currentDataMap = new Map(
@@ -525,11 +475,8 @@ const SP500SentimentTable: React.FC = () => {
         fetchData("/api/scrape-inflation", "Inflación"),
         fetchData("/api/scrape-unemployment-rate", "Tasa de Desempleo"),
         fetchData("/api/scrape-interest-rate", "Tasa de Interés"),
-        fetchData("/api/scrape-cot-sp500", "Sentimiento COT Large Speculators"), // API para S&P 500 Large Speculators
-        fetchData(
-          "/api/scrape-cot-sp500-small-traders",
-          "Sentimiento COT Small Traders"
-        ), // API para S&P 500 Small Traders
+        // API para S&P 500 Large Speculators y Small Traders se eliminaron
+        // Mantener solo la API de las 7 Magníficas
         fetchData(
           "/api/scrape-magnificent7-sentiment",
           "Sentimiento de las 7 Magníficas"
@@ -542,24 +489,10 @@ const SP500SentimentTable: React.FC = () => {
         if (result.status === "fulfilled" && result.value) {
           const { variable, actualValue, forecastValue } = result.value;
 
-          let targetVariable = variable;
+          const targetVariable = variable;
 
-          // Mapear los nombres de las variables de la API a los nombres de la tabla si es necesario
-          if (variable === "Sentimiento COT Large Speculators") {
-            // From the new API
-            targetVariable = "Sentimiento COT Large Speculators";
-          } else if (variable === "Sentimiento COT Small Traders") {
-            // From the new API
-            targetVariable = "Sentimiento COT Small Traders";
-          }
-
-          let finalActualValue = actualValue;
-          if (
-            targetVariable === "Sentimiento de las 7 Magníficas" &&
-            actualValue !== null
-          ) {
-            finalActualValue = parseFloat(((actualValue / 7) * 100).toFixed(2));
-          }
+          // Para Sentimiento de las 7 Magníficas, el actualValue ya es el score de -7 a 7
+          const finalActualValue = actualValue;
 
           if (currentDataMap.has(targetVariable)) {
             const existingData = currentDataMap.get(targetVariable)!;
@@ -589,79 +522,52 @@ const SP500SentimentTable: React.FC = () => {
         });
       }
 
+      // Actualizar el estado una sola vez al final
       setMacroEconomicData(Array.from(currentDataMap.values()));
       setIsLoading(false);
       setIsCalculatingBias(false); // Se desactiva una vez que toda la carga inicial está completa
     };
 
     loadAllData();
-  }, [
-    fetchData,
-    initialMacroEconomicData,
-    getSeasonalityForCurrentMonth,
-    // Este useEffect no necesita macroEconomicData como dependencia.
-    // Solo se ejecuta una vez al montar el componente (gracias a sus dependencias estables)
-    // para la carga inicial de datos.
-  ]);
-
-  // ELIMINADO: El useEffect anterior que manejaba dailyChartManualInput y macroEconomicData
-  // ha sido removido porque era redundante y causaba el bucle infinito.
-  // La actualización de macroEconomicData desde TableRow es suficiente,
-  // y los useMemo de totalScore y bias se recalcularán automáticamente.
+  }, [fetchData, initialMacroEconomicData, getSeasonalityForCurrentMonth]);
 
   // Calcula el total de la puntuación
   const totalScore = useMemo(() => {
     return macroEconomicData.reduce((sum, data) => {
-      if (
-        data.variable === "Sentimiento COT Large Speculators" ||
-        data.variable === "Sentimiento COT Small Traders" ||
-        data.variable === "Sentimiento de las 7 Magníficas" ||
-        data.variable === "Estacionalidad" ||
-        data.variable === "Gráfica Diaria"
-      ) {
-        if (data.actualValue !== null) {
-          const originalScoreForMagnificent7 =
-            data.variable === "Sentimiento de las 7 Magníficas" &&
-            data.actualValue !== null
-              ? Math.round((data.actualValue / 100) * 7)
-              : data.actualValue;
-
-          const tempMagnificent7Data = {
-            ...data,
-            actualValue: originalScoreForMagnificent7,
-          };
-
-          return sum + calculateScore(tempMagnificent7Data);
-        }
-        return sum;
-      }
-
-      if (
-        data.actualValue !== null &&
-        data.forecastValue !== null &&
-        data.forecastValue !== undefined
-      ) {
-        return sum + calculateScore(data);
-      }
-      return sum;
+      // Usa la lógica de puntuación para cada variable
+      return sum + calculateScore(data);
     }, 0);
   }, [macroEconomicData, calculateScore]);
 
   // Determina el sesgo basado en la puntuación total
+  // Rangos actualizados para un score total de -16 a 16, con neutro en [-3, 3]
   const bias = useMemo(() => {
-    if (totalScore >= 4 && totalScore <= 12) {
+    if (totalScore >= 4) {
       return "Alcista";
-    } else if (totalScore >= -3 && totalScore <= 3) {
-      return "Neutro";
-    } else if (totalScore >= -12 && totalScore <= -4) {
+    } else if (totalScore <= -4) {
       return "Bajista";
+    } else {
+      // totalScore está entre -3 y 3 (inclusive)
+      return "Neutro";
     }
-    return "Indefinido";
   }, [totalScore]);
+
+  // Determina el color del texto de la puntuación total
+  const totalScoreTextColorClass = useMemo(() => {
+    if (bias === "Alcista") {
+      return "text-green-700";
+    } else if (bias === "Bajista") {
+      return "text-red-700";
+    } else if (bias === "Neutro") {
+      return "text-yellow-700";
+    }
+    return "text-gray-500"; // Para "Calculando..." o "Indefinido"
+  }, [bias]);
 
   // Genera el análisis del sesgo de forma profesional
   const generateProfessionalAnalysis = useCallback(() => {
     const scoresMap: { [key: string]: number | null } = {};
+    // Solo consideramos los factores macro, de sentimiento y técnicos para el análisis.
     const relevantVariables = macroEconomicData.filter(
       (item) =>
         item.category === "MACRO" ||
@@ -671,22 +577,33 @@ const SP500SentimentTable: React.FC = () => {
 
     relevantVariables.forEach((item) => {
       if (item.actualValue !== null) {
-        if (item.variable === "Sentimiento de las 7 Magníficas") {
-          scoresMap[item.variable] = Math.round((item.actualValue / 100) * 7);
-        } else {
-          scoresMap[item.variable] = calculateScore(item);
-        }
+        scoresMap[item.variable] = calculateScore(item);
       }
     });
 
     const positiveFactors = relevantVariables
-      .filter((item) => scoresMap[item.variable] === 1)
+      .filter(
+        (item) =>
+          scoresMap[item.variable] !== null &&
+          scoresMap[item.variable] !== undefined &&
+          (scoresMap[item.variable] as number) > 0
+      )
       .map((item) => item.variable);
     const negativeFactors = relevantVariables
-      .filter((item) => scoresMap[item.variable] === -1)
+      .filter(
+        (item) =>
+          scoresMap[item.variable] !== null &&
+          scoresMap[item.variable] !== undefined &&
+          (scoresMap[item.variable] as number) < 0
+      )
       .map((item) => item.variable);
     const neutralFactors = relevantVariables
-      .filter((item) => scoresMap[item.variable] === 0)
+      .filter(
+        (item) =>
+          scoresMap[item.variable] !== null &&
+          scoresMap[item.variable] !== undefined &&
+          scoresMap[item.variable] === 0
+      )
       .map((item) => item.variable);
 
     let analysisText = "";
@@ -749,14 +666,13 @@ const SP500SentimentTable: React.FC = () => {
         <div className="flex flex-col items-center mb-8 bg-white rounded-xl p-6 shadow-lg border border-blue-100">
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-md mr-4 overflow-hidden">
-              {/* Uso del componente Image de next/image para optimización */}
               <Image
                 src="https://i.ibb.co/20RsFG5H/emporium-logo-1.jpg"
                 alt="Emporium Quality Funds"
                 width={64}
                 height={64}
                 className="object-cover"
-                priority // Carga esta imagen con alta prioridad
+                priority
               />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-800 text-center">
@@ -770,6 +686,7 @@ const SP500SentimentTable: React.FC = () => {
           </p>
         </div>
 
+        {/* Indicador de carga y errores */}
         {isLoading && (
           <div className="text-center py-8">
             <div className="inline-flex items-center px-6 py-3 bg-white rounded-lg shadow-md">
@@ -854,7 +771,10 @@ const SP500SentimentTable: React.FC = () => {
               </svg>
               Puntuación Total
             </h3>
-            <div className="text-3xl font-bold text-blue-600 text-center py-4 bg-blue-50 rounded-lg">
+            {/* Aplicar el color del texto basado en el sesgo */}
+            <div
+              className={`text-3xl font-bold text-center py-4 bg-blue-50 rounded-lg ${totalScoreTextColorClass}`}
+            >
               {isCalculatingBias ? (
                 <span className="text-gray-500">Calculando...</span>
               ) : (
@@ -927,7 +847,7 @@ const SP500SentimentTable: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-green-500 mr-3"></div>
                 <div>
                   <span className="font-medium text-green-800">Alcista:</span>
-                  <span className="text-green-700 ml-2">De +4 a +12 📈</span>
+                  <span className="text-green-700 ml-2">De +4 a +16 📈</span>
                 </div>
               </li>
               <li className="flex items-center p-3 rounded-lg bg-yellow-50 border border-yellow-200">
@@ -941,7 +861,7 @@ const SP500SentimentTable: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
                 <div>
                   <span className="font-medium text-red-800">Bajista:</span>
-                  <span className="text-red-700 ml-2">De -12 a -4 📉</span>
+                  <span className="text-red-700 ml-2">De -16 a -4 📉</span>
                 </div>
               </li>
             </ul>

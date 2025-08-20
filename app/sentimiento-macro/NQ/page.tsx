@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import Image from "next/image"; // Importado el componente Image de Next.js para optimización
+import Image from "next/image";
 
-// Definición de tipos para los datos de la tabla
+// Definición de tipos
 interface MacroEconomicData {
   category: string;
   variable: string;
@@ -14,19 +14,16 @@ interface MacroEconomicData {
   isNegativeForNasdaq: boolean;
 }
 
-// Definición de tipos para la respuesta general de la API
-// Puede incluir forecastValue opcionalmente
 interface ApiResponseData {
   variable: string;
   actualValue: number | null;
-  forecastValue?: number | null; // Hacer forecastValue opcional
+  forecastValue?: number | null;
   error?: string;
-  // Propiedades adicionales para COT que no tienen forecastValue
   longChange?: number | null;
   shortChange?: number | null;
 }
 
-// Componente para el tooltip con dirección personalizable
+// Componente Tooltip
 const Tooltip: React.FC<{
   content: string;
   children: React.ReactNode;
@@ -61,7 +58,7 @@ const Tooltip: React.FC<{
   );
 };
 
-// Componente para una fila de la tabla
+// Componente TableRow
 const TableRow: React.FC<{
   data: MacroEconomicData;
   calculateScore: (data: MacroEconomicData) => number;
@@ -73,7 +70,7 @@ const TableRow: React.FC<{
   rowSpan: number;
   setMacroEconomicData: React.Dispatch<
     React.SetStateAction<MacroEconomicData[]>
-  >; // Added this prop
+  >;
 }> = ({
   data,
   calculateScore,
@@ -81,15 +78,15 @@ const TableRow: React.FC<{
   setDailyChartManualInput,
   isFirstInCategory,
   rowSpan,
-  setMacroEconomicData, // Destructure the new prop
+  setMacroEconomicData,
 }) => {
   const score = useMemo(() => calculateScore(data), [data, calculateScore]);
 
-  // Determina el color de la puntuación
+  // Determina el color de la puntuación individual
   const scoreColorClass = useMemo(() => {
-    if (score === 1)
+    if (score > 0)
       return "bg-green-100 text-green-800 border border-green-200";
-    if (score === -1) return "bg-red-100 text-red-800 border border-red-200";
+    if (score < 0) return "bg-red-100 text-red-800 border border-red-200";
     return "bg-gray-100 text-gray-800 border border-gray-200";
   }, [score]);
 
@@ -109,10 +106,6 @@ const TableRow: React.FC<{
       "Porcentaje de la fuerza laboral desempleada. Un desempleo bajo generalmente es positivo, pero demasiado bajo puede generar presiones inflacionarias.",
     "Tasa de Interés":
       "Tasa establecida por la Fed. Tasas bajas benefician al Nasdaq porque hacen que las acciones de crecimiento (como las tecnológicas) sean más atractivas frente a los bonos.",
-    "Sentimiento COT Large Speculators":
-      "Posicionamiento de los grandes especuladores en futuros del Nasdaq. Un valor positivo alto sugiere expectativas alcistas por parte de actores institucionales.",
-    "Sentimiento COT Small Traders":
-      "Posicionamiento de pequeños traders en futuros del Nasdaq. Suele ser un indicador contrario: cuando los pequeños traders son muy alcistas, puede ser señal de mercado sobrecomprado.",
     "Sentimiento de las 7 Magníficas":
       "Análisis de precio de las 7 acciones tecnológicas más grandes (Apple, Microsoft, Amazon, etc.). Representa la salud del sector tecnológico.",
     Estacionalidad:
@@ -152,14 +145,11 @@ const TableRow: React.FC<{
           {data.variable}
         </Tooltip>
       </td>
-      {/* Lógica para unificar celdas de Valor Actual y Previsión para Sentimiento COT, 7 Magníficas y Estacionalidad */}
-      {data.variable === "Sentimiento COT Large Speculators" ||
-      data.variable === "Sentimiento COT Small Traders" ||
-      data.variable === "Sentimiento de las 7 Magníficas" ||
+      {/* Lógica para unificar celdas de Valor Actual y Previsión para Sentimiento de las 7 Magníficas, Estacionalidad y Gráfica Diaria */}
+      {data.variable === "Sentimiento de las 7 Magníficas" ||
       data.variable === "Estacionalidad" ||
       data.variable === "Gráfica Diaria" ? (
         <td className="py-3 px-4 text-sm text-gray-700 text-center" colSpan={2}>
-          {/* Renderizar el select para Gráfica Diaria */}
           {data.variable === "Gráfica Diaria" ? (
             <select
               id="dailyChartSentiment"
@@ -169,7 +159,6 @@ const TableRow: React.FC<{
                 setDailyChartManualInput(
                   e.target.value as "Alcista" | "Neutro" | "Bajista"
                 );
-                // Actualiza inmediatamente el valor de la gráfica diaria en los datos de la tabla
                 const scoreValue =
                   e.target.value === "Alcista"
                     ? 1
@@ -178,8 +167,6 @@ const TableRow: React.FC<{
                     : e.target.value === "Bajista"
                     ? -1
                     : null;
-
-                // Llamar a setMacroEconomicData para actualizar solo esta fila
                 setMacroEconomicData((prevData: MacroEconomicData[]) =>
                   prevData.map((item: MacroEconomicData) =>
                     item.variable === "Gráfica Diaria"
@@ -196,8 +183,11 @@ const TableRow: React.FC<{
               <option value="Neutro">Neutro</option>
               <option value="Bajista">Bajista</option>
             </select>
-          ) : // Renderizado normal para otras variables unificadas
-          data.actualValue !== null ? (
+          ) : data.variable === "Sentimiento de las 7 Magníficas" ? (
+            // Si es "Sentimiento de las 7 Magníficas", se muestra un espacio vacío
+            // El valor numérico (e.g., -7 a 7) se obtiene de calculateScore para la columna de Puntuación
+            <span className="text-gray-400"></span> // Espacio vacío
+          ) : data.actualValue !== null ? (
             `${data.actualValue}${data.unit}`
           ) : (
             <span className="text-gray-400">Cargando...</span>
@@ -224,8 +214,6 @@ const TableRow: React.FC<{
       >
         {data.actualValue !== null &&
         ((data.forecastValue !== null && data.forecastValue !== undefined) ||
-          data.variable === "Sentimiento COT Large Speculators" ||
-          data.variable === "Sentimiento COT Small Traders" ||
           data.variable === "Sentimiento de las 7 Magníficas" ||
           data.variable === "Estacionalidad" ||
           data.variable === "Gráfica Diaria")
@@ -262,7 +250,7 @@ const TableRow: React.FC<{
 
 // Componente principal de la tabla
 const NasdaqSentimentTable: React.FC = () => {
-  // Datos de estacionalidad harcodeados basados en la imagen "image_438b23.png" para NASDAQ
+  // Datos de estacionalidad harcodeados
   const seasonalityData = useMemo(
     () => ({
       Jan: 2,
@@ -283,24 +271,20 @@ const NasdaqSentimentTable: React.FC = () => {
 
   // Función para obtener el valor de estacionalidad del mes actual
   const getSeasonalityForCurrentMonth = useCallback(() => {
-    const currentMonth = new Date().toLocaleString("en-us", { month: "short" }); // Ej: 'Aug'
+    const currentMonth = new Date().toLocaleString("en-us", { month: "short" });
     const monthKey =
-      currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1); // Ej: 'Aug'
-    // Los datos de la tabla son porcentajes, por lo que los usamos directamente.
-    // El 0.59 que tenías era probablemente el valor promedio de Agosto, pero la tabla solo muestra enteros.
-    // Si la tabla original tenía valores decimales, ajusta `seasonalityData` acorde.
+      currentMonth.charAt(0).toUpperCase() + currentMonth.slice(1);
     return seasonalityData[monthKey as keyof typeof seasonalityData] || 0;
   }, [seasonalityData]);
 
   // Definición de los datos iniciales de la tabla.
-  // Usamos useMemo para asegurar que este array solo se cree una vez.
   const initialMacroEconomicData: MacroEconomicData[] = useMemo(
     () => [
       {
         category: "MACRO",
         variable: "Crecimiento del PIB",
-        actualValue: null, // Valor temporal, se actualizará
-        forecastValue: null, // Valor temporal, se actualizará
+        actualValue: null,
+        forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/gdp-growth",
         isNegativeForNasdaq: false,
@@ -308,8 +292,8 @@ const NasdaqSentimentTable: React.FC = () => {
       {
         category: "MACRO",
         variable: "PMI Manufacturero",
-        actualValue: null, // Valor temporal, se actualizará
-        forecastValue: null, // Valor temporal, se actualizará
+        actualValue: null,
+        forecastValue: null,
         unit: "",
         source: "https://tradingeconomics.com/united-states/manufacturing-pmi",
         isNegativeForNasdaq: false,
@@ -317,8 +301,8 @@ const NasdaqSentimentTable: React.FC = () => {
       {
         category: "MACRO",
         variable: "PMI de Servicios",
-        actualValue: null, // Valor temporal, se actualizará
-        forecastValue: null, // Valor temporal, se actualizará
+        actualValue: null,
+        forecastValue: null,
         unit: "",
         source: "https://tradingeconomics.com/united-states/services-pmi",
         isNegativeForNasdaq: false,
@@ -326,8 +310,8 @@ const NasdaqSentimentTable: React.FC = () => {
       {
         category: "MACRO",
         variable: "Ventas Minoristas",
-        actualValue: null, // Valor temporal, se actualizará
-        forecastValue: null, // Valor temporal, se actualizará
+        actualValue: null,
+        forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/retail-sales",
         isNegativeForNasdaq: false,
@@ -335,26 +319,26 @@ const NasdaqSentimentTable: React.FC = () => {
       {
         category: "MACRO",
         variable: "Inflación",
-        actualValue: null, // Valor temporal, se actualizará
-        forecastValue: null, // Valor temporal, se actualizará
+        actualValue: null,
+        forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/inflation-cpi",
-        isNegativeForNasdaq: true, // Inflación alta es negativa para el Nasdaq
+        isNegativeForNasdaq: true,
       },
       {
         category: "MACRO",
         variable: "Tasa de Desempleo",
-        actualValue: null, // Valor temporal, se actualizará
-        forecastValue: null, // Valor temporal, se actualizará
+        actualValue: null,
+        forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/unemployment-rate",
-        isNegativeForNasdaq: true, // Desempleo alto es negativo para el Nasdaq
+        isNegativeForNasdaq: true,
       },
       {
         category: "MACRO",
         variable: "Tasa de Interés",
-        actualValue: null, // Valor temporal, se actualizará
-        forecastValue: null, // Valor temporal, se actualizará
+        actualValue: null,
+        forecastValue: null,
         unit: "%",
         source: "https://tradingeconomics.com/united-states/interest-rate",
         isNegativeForNasdaq: false,
@@ -362,49 +346,31 @@ const NasdaqSentimentTable: React.FC = () => {
       // Datos de Sentimiento
       {
         category: "SENTIMIENTO",
-        variable: "Sentimiento COT Large Speculators",
-        actualValue: null, // Ahora se obtiene de la API
-        forecastValue: undefined,
-        unit: "%",
-        source: "https://insider-week.com/en/cot/", // Fuente estática
-        isNegativeForNasdaq: false,
-      },
-      {
-        category: "SENTIMIENTO",
-        variable: "Sentimiento COT Small Traders",
-        actualValue: null, // Ahora se obtiene de la API
-        forecastValue: undefined,
-        unit: "%",
-        source: "https://insider-week.com/en/cot/", // Fuente estática
-        isNegativeForNasdaq: false,
-      },
-      {
-        category: "SENTIMIENTO",
         variable: "Sentimiento de las 7 Magníficas",
-        actualValue: null, // Valor temporal, se actualizará con el score total
-        forecastValue: undefined, // No hay previsión
-        unit: "%", // Es un score, no un porcentaje
+        actualValue: null, // Valor numérico directo de -7 a 7
+        forecastValue: undefined,
+        unit: "", // Unidad vacía para mostrar solo el número
         source: "Consolidado de Yahoo Finance",
-        isNegativeForNasdaq: false, // El score ya indica el sesgo
+        isNegativeForNasdaq: false,
       },
       // Datos Técnicos
       {
         category: "TÉCNICOS",
         variable: "Estacionalidad",
         actualValue: null, // Se llenará con el valor del mes actual
-        forecastValue: undefined, // No hay previsión
-        unit: "%", // Es un porcentaje
-        source: "https://wegcapital.cl/noticia/estacionalidad", // Fuente actualizada
-        isNegativeForNasdaq: false, // Positivo si el rendimiento es positivo
+        forecastValue: undefined,
+        unit: "%",
+        source: "https://wegcapital.cl/noticia/estacionalidad",
+        isNegativeForNasdaq: false,
       },
       {
         category: "TÉCNICOS",
         variable: "Gráfica Diaria",
         actualValue: null, // Valor inicial null, se llenará con la entrada manual
-        forecastValue: undefined, // No hay previsión
-        unit: "", // No hay unidad, es un texto/score
-        source: "Entrada Manual", // Fuente de entrada manual
-        isNegativeForNasdaq: false, // El score ya indica el sesgo
+        forecastValue: undefined,
+        unit: "",
+        source: "Entrada Manual",
+        isNegativeForNasdaq: false,
       },
     ],
     []
@@ -415,53 +381,31 @@ const NasdaqSentimentTable: React.FC = () => {
   >(initialMacroEconomicData);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Nuevo estado para la entrada manual de Gráfica Diaria
   const [dailyChartManualInput, setDailyChartManualInput] = useState<
     "Alcista" | "Neutro" | "Bajista" | null
   >(null);
-  // Nuevo estado para indicar que el sesgo total se está calculando
-  // Este estado solo se usará para la carga inicial de APIs.
   const [isCalculatingBias, setIsCalculatingBias] = useState(false);
 
   // Función para calcular la puntuación de una variable
   const calculateScore = useCallback((data: MacroEconomicData): number => {
-    // Lógica especial para Sentimiento COT (Large Speculators)
-    if (data.variable === "Sentimiento COT Large Speculators") {
-      if (data.actualValue === null) return 0;
-      if (data.actualValue > 10) return 1;
-      if (data.actualValue < -10) return -1;
-      return 0;
-    }
-
-    // Lógica especial para Sentimiento COT Small Traders
-    if (data.variable === "Sentimiento COT Small Traders") {
-      if (data.actualValue === null) return 0;
-      // Tus criterios: 1 si < -10%, -1 si > 10%, 0 si entre -10% y +10%
-      if (data.actualValue < -10) return 1; // Bajista Small Traders -> Alcista para índice (contrario)
-      if (data.actualValue > 10) return -1; // Alcista Small Traders -> Bajista para índice (contrario)
-      return 0; // Neutral
-    }
-
     // Lógica especial para Sentimiento de las 7 Magníficas
     if (data.variable === "Sentimiento de las 7 Magníficas") {
       if (data.actualValue === null) return 0;
-      // La puntuación se basa en el valor original de -7 to 7
-      if (data.actualValue > 0) return 1; // Alcista si el score total es positivo
-      if (data.actualValue < 0) return -1; // Bajista si el score total es negativo
-      return 0; // Neutral si el score total es cero
+      // Retornar directamente el valor numérico de la API (-7 a 7)
+      return data.actualValue;
     }
 
     // Lógica especial para Estacionalidad
     if (data.variable === "Estacionalidad") {
       if (data.actualValue === null) return 0;
-      if (data.actualValue > 0) return 1; // Positivo si el rendimiento promedio es positivo
-      if (data.actualValue < 0) return -1; // Negativo si el rendimiento promedio es negativo
-      return 0; // Neutral si es cero
+      if (data.actualValue > 0) return 1;
+      if (data.actualValue < 0) return -1;
+      return 0;
     }
 
     // Lógica especial para Gráfica Diaria (entrada manual)
     if (data.variable === "Gráfica Diaria") {
-      if (data.actualValue === null) return 0; // Si no hay valor, es 0
+      if (data.actualValue === null) return 0;
       if (data.actualValue === 1) return 1; // Alcista
       if (data.actualValue === -1) return -1; // Bajista
       if (data.actualValue === 0) return 0; // Neutro
@@ -502,7 +446,7 @@ const NasdaqSentimentTable: React.FC = () => {
               : `Error desconocido al obtener datos de ${variableName}`;
           throw new Error(errorMessage);
         }
-        const data: ApiResponseData = await response.json(); // Ahora usa ApiResponseData
+        const data: ApiResponseData = await response.json();
         return data;
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : String(err);
@@ -534,14 +478,6 @@ const NasdaqSentimentTable: React.FC = () => {
         fetchData("/api/scrape-unemployment-rate", "Tasa de Desempleo"),
         fetchData("/api/scrape-interest-rate", "Tasa de Interés"),
         fetchData(
-          "/api/scrape-cot-nasdaq",
-          "Sentimiento COT Large Speculators"
-        ),
-        fetchData(
-          "/api/scrape-cot-nasdaq-small-traders",
-          "Sentimiento COT Small Traders"
-        ),
-        fetchData(
           "/api/scrape-magnificent7-sentiment",
           "Sentimiento de las 7 Magníficas"
         ),
@@ -553,21 +489,10 @@ const NasdaqSentimentTable: React.FC = () => {
         if (result.status === "fulfilled" && result.value) {
           const { variable, actualValue, forecastValue } = result.value;
 
-          let targetVariable = variable;
+          const targetVariable = variable;
 
-          if (variable === "Sentimiento COT del Nasdaq") {
-            targetVariable = "Sentimiento COT Large Speculators";
-          } else if (variable === "Sentimiento COT Small Traders") {
-            targetVariable = "Sentimiento COT Small Traders";
-          }
-
-          let finalActualValue = actualValue;
-          if (
-            targetVariable === "Sentimiento de las 7 Magníficas" &&
-            actualValue !== null
-          ) {
-            finalActualValue = parseFloat(((actualValue / 7) * 100).toFixed(2));
-          }
+          // Para Sentimiento de las 7 Magníficas, el actualValue ya es el score de -7 a 7
+          const finalActualValue = actualValue;
 
           if (currentDataMap.has(targetVariable)) {
             const existingData = currentDataMap.get(targetVariable)!;
@@ -606,64 +531,38 @@ const NasdaqSentimentTable: React.FC = () => {
     loadAllData();
   }, [fetchData, initialMacroEconomicData, getSeasonalityForCurrentMonth]);
 
-  // Se ELIMINA el useEffect anterior para dailyChartManualInput,
-  // ya que la actualización de `macroEconomicData` en TableRow
-  // es suficiente para que `totalScore` y `bias` se recalculen
-  // debido a sus dependencias en useMemo.
-  // La gestión de `isCalculatingBias` ahora es solo para la carga inicial.
-
   // Calcula el total de la puntuación
   const totalScore = useMemo(() => {
     return macroEconomicData.reduce((sum, data) => {
-      // Para Sentimiento COT Large Speculators, Sentimiento COT Small Traders, Sentimiento de las 7 Magníficas, Estacionalidad y Gráfica Diaria, usa la lógica de puntuación especial
-      if (
-        data.variable === "Sentimiento COT Large Speculators" ||
-        data.variable === "Sentimiento COT Small Traders" ||
-        data.variable === "Sentimiento de las 7 Magníficas" ||
-        data.variable === "Estacionalidad" ||
-        data.variable === "Gráfica Diaria"
-      ) {
-        if (data.actualValue !== null) {
-          // La puntuación para las 7 Magníficas se calcula antes de la conversión a porcentaje
-          const originalScoreForMagnificent7 =
-            data.variable === "Sentimiento de las 7 Magníficas" &&
-            data.actualValue !== null
-              ? Math.round((data.actualValue / 100) * 7)
-              : data.actualValue;
-
-          const tempMagnificent7Data = {
-            ...data,
-            actualValue: originalScoreForMagnificent7,
-          };
-
-          return sum + calculateScore(tempMagnificent7Data);
-        }
-        return sum;
-      }
-
-      // Para otras variables, se requiere actualValue y forecastValue
-      if (
-        data.actualValue !== null &&
-        data.forecastValue !== null &&
-        data.forecastValue !== undefined
-      ) {
-        return sum + calculateScore(data);
-      }
-      return sum;
+      // Usa la lógica de puntuación para cada variable
+      return sum + calculateScore(data);
     }, 0);
   }, [macroEconomicData, calculateScore]);
 
   // Determina el sesgo basado en la puntuación total
+  // Rangos actualizados para un score total de -16 a 16, con neutro en [-3, 3]
   const bias = useMemo(() => {
-    if (totalScore >= 4 && totalScore <= 12) {
+    if (totalScore >= 4) {
       return "Alcista";
-    } else if (totalScore >= -3 && totalScore <= 3) {
-      return "Neutro";
-    } else if (totalScore >= -12 && totalScore <= -4) {
+    } else if (totalScore <= -4) {
       return "Bajista";
+    } else { // totalScore está entre -3 y 3 (inclusive)
+      return "Neutro";
     }
-    return "Indefinido";
   }, [totalScore]);
+
+  // Determina el color del texto de la puntuación total
+  const totalScoreTextColorClass = useMemo(() => {
+    if (bias === "Alcista") {
+      return "text-green-700";
+    } else if (bias === "Bajista") {
+      return "text-red-700";
+    } else if (bias === "Neutro") {
+      return "text-yellow-700";
+    }
+    return "text-gray-500"; // Para "Calculando..." o "Indefinido"
+  }, [bias]);
+
 
   // Genera el análisis del sesgo de forma profesional
   const generateProfessionalAnalysis = useCallback(() => {
@@ -678,24 +577,33 @@ const NasdaqSentimentTable: React.FC = () => {
 
     relevantVariables.forEach((item) => {
       if (item.actualValue !== null) {
-        // Para las 7 Magníficas, revertir el porcentaje a score original para el análisis
-        if (item.variable === "Sentimiento de las 7 Magníficas") {
-          scoresMap[item.variable] = Math.round((item.actualValue / 100) * 7);
-        } else {
-          // Para las demás, usar su puntuación calculada
-          scoresMap[item.variable] = calculateScore(item);
-        }
+        scoresMap[item.variable] = calculateScore(item);
       }
     });
 
     const positiveFactors = relevantVariables
-      .filter((item) => scoresMap[item.variable] === 1)
+      .filter(
+        (item) =>
+          scoresMap[item.variable] !== null &&
+          scoresMap[item.variable] !== undefined &&
+          (scoresMap[item.variable] as number) > 0
+      )
       .map((item) => item.variable);
     const negativeFactors = relevantVariables
-      .filter((item) => scoresMap[item.variable] === -1)
+      .filter(
+        (item) =>
+          scoresMap[item.variable] !== null &&
+          scoresMap[item.variable] !== undefined &&
+          (scoresMap[item.variable] as number) < 0
+      )
       .map((item) => item.variable);
     const neutralFactors = relevantVariables
-      .filter((item) => scoresMap[item.variable] === 0)
+      .filter(
+        (item) =>
+          scoresMap[item.variable] !== null &&
+          scoresMap[item.variable] !== undefined &&
+          scoresMap[item.variable] === 0
+      )
       .map((item) => item.variable);
 
     let analysisText = "";
@@ -739,7 +647,7 @@ const NasdaqSentimentTable: React.FC = () => {
     return <span dangerouslySetInnerHTML={{ __html: analysisText }} />;
   }, [bias, macroEconomicData, calculateScore]);
 
-  // Agrupar datos por categoría para mostrar "Datos" y "Variables" correctamente
+  // Agrupar datos por categoría
   const groupedData = useMemo(() => {
     const groups: { [key: string]: MacroEconomicData[] } = {};
     macroEconomicData.forEach((item) => {
@@ -758,14 +666,13 @@ const NasdaqSentimentTable: React.FC = () => {
         <div className="flex flex-col items-center mb-8 bg-white rounded-xl p-6 shadow-lg border border-blue-100">
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 rounded-full flex items-center justify-center shadow-md mr-4 overflow-hidden">
-              {/* Uso del componente Image de next/image para optimización */}
               <Image
                 src="https://i.ibb.co/20RsFG5H/emporium-logo-1.jpg"
                 alt="Emporium Quality Funds"
                 width={64}
                 height={64}
                 className="object-cover"
-                priority // Carga esta imagen con alta prioridad
+                priority
               />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-800 text-center">
@@ -779,6 +686,7 @@ const NasdaqSentimentTable: React.FC = () => {
           </p>
         </div>
 
+        {/* Indicador de carga y errores */}
         {isLoading && (
           <div className="text-center py-8">
             <div className="inline-flex items-center px-6 py-3 bg-white rounded-lg shadow-md">
@@ -833,7 +741,7 @@ const NasdaqSentimentTable: React.FC = () => {
                         setDailyChartManualInput={setDailyChartManualInput}
                         isFirstInCategory={index === 0}
                         rowSpan={items.length}
-                        setMacroEconomicData={setMacroEconomicData} // Pass the setter here
+                        setMacroEconomicData={setMacroEconomicData}
                       />
                     ))}
                   </React.Fragment>
@@ -863,7 +771,8 @@ const NasdaqSentimentTable: React.FC = () => {
               </svg>
               Puntuación Total
             </h3>
-            <div className="text-3xl font-bold text-blue-600 text-center py-4 bg-blue-50 rounded-lg">
+            {/* Aplicar el color del texto basado en el sesgo */}
+            <div className={`text-3xl font-bold text-center py-4 bg-blue-50 rounded-lg ${totalScoreTextColorClass}`}>
               {isCalculatingBias ? (
                 <span className="text-gray-500">Calculando...</span>
               ) : (
@@ -936,7 +845,7 @@ const NasdaqSentimentTable: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-green-500 mr-3"></div>
                 <div>
                   <span className="font-medium text-green-800">Alcista:</span>
-                  <span className="text-green-700 ml-2">De +4 a +12 📈</span>
+                  <span className="text-green-700 ml-2">De +4 a +16 📈</span>
                 </div>
               </li>
               <li className="flex items-center p-3 rounded-lg bg-yellow-50 border border-yellow-200">
@@ -950,7 +859,7 @@ const NasdaqSentimentTable: React.FC = () => {
                 <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
                 <div>
                   <span className="font-medium text-red-800">Bajista:</span>
-                  <span className="text-red-700 ml-2">De -12 a -4 📉</span>
+                  <span className="text-red-700 ml-2">De -16 a -4 📉</span>
                 </div>
               </li>
             </ul>
