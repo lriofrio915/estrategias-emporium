@@ -16,11 +16,8 @@ export default function Navbar() {
 
   const navbarRef = useRef<HTMLDivElement>(null);
 
-  // Usamos un solo estado para manejar qué menú desplegable está abierto.
-  // Esto simplifica la lógica de cierre y evita conflictos.
   const toggleDropdown = (dropdownName: string) => {
     setOpenDropdown(openDropdown === dropdownName ? null : dropdownName);
-    // Aseguramos que el menú móvil se cierre al interactuar con un dropdown de escritorio
     if (isMobileMenuOpen) {
       setIsMobileMenuOpen(false);
     }
@@ -31,7 +28,6 @@ export default function Navbar() {
     setOpenDropdown(null);
   };
 
-  // Cierra los menús si el usuario hace clic fuera del navbar
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -48,7 +44,6 @@ export default function Navbar() {
     };
   }, []);
 
-  // Controla el scroll del body cuando el menú móvil está abierto
   useEffect(() => {
     document.body.style.overflow = isMobileMenuOpen ? "hidden" : "";
     return () => {
@@ -157,11 +152,18 @@ export default function Navbar() {
             {openDropdown === "estrategias" && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                 <Link
-                  href="/manuales/Nasdaq"
+                  href="/manuales/Nasdaq-1"
                   className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                   onClick={closeAllMenus}
                 >
                   Estrategia NQ
+                </Link>
+                <Link
+                  href="/manuales/Nasdaq-2"
+                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                  onClick={closeAllMenus}
+                >
+                  Estrategia MNQ
                 </Link>
                 <Link
                   href="/manuales/SP500-1"
@@ -202,6 +204,13 @@ export default function Navbar() {
                   onClick={closeAllMenus}
                 >
                   Informes NQ
+                </Link>
+                <Link
+                  href="/informes/MNQ"
+                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                  onClick={closeAllMenus}
+                >
+                  Informes MNQ
                 </Link>
                 <Link
                   href="/informes/MES"
@@ -253,7 +262,6 @@ export default function Navbar() {
               </div>
             )}
           </div>
-          {/* El menú desplegable de Herramientas ha sido eliminado */}
         </div>
       </div>
 
@@ -304,11 +312,18 @@ export default function Navbar() {
             Estrategias:
           </span>
           <Link
-            href="/manuales/Nasdaq"
+            href="/manuales/Nasdaq-1"
             className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
             onClick={closeAllMenus}
           >
             Estrategia NQ
+          </Link>
+          <Link
+            href="/manuales/Nasdaq-2"
+            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+            onClick={closeAllMenus}
+          >
+            Estrategia MNQ
           </Link>
           <Link
             href="/manuales/SP500-1"
@@ -337,6 +352,13 @@ export default function Navbar() {
             onClick={closeAllMenus}
           >
             Informes NQ
+          </Link>
+          <Link
+            href="/informes/MNQ"
+            className="block px-3 py-2 text-white hover:text-gray-300 rounded-md text-base font-medium pl-6"
+            onClick={closeAllMenus}
+          >
+            Informes MNQ
           </Link>
           <Link
             href="/informes/MES"
@@ -373,7 +395,6 @@ export default function Navbar() {
           >
             S&P 500
           </Link>
-          {/* Los enlaces de pares de divisas han sido eliminados */}
         </div>
       </div>
     </nav>
