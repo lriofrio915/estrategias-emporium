@@ -260,7 +260,7 @@ export default function ManualNasdaq2Page() {
           </h3>
         </div>
         <div className="flex justify-between pt-4 mt-6 border-t border-gray-200 text-sm text-gray-600">
-          <span>Emporium Quality Funds</span>
+          <span>Emporium Quality Funds </span>
           <span>Página 3</span>
         </div>
       </div>
