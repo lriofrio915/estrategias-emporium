@@ -262,6 +262,39 @@ export default function Navbar() {
               </div>
             )}
           </div>
+
+          {/* Nuevo Menú desplegable de Portafolios */}
+          <div className="relative">
+            <button
+              onClick={() => toggleDropdown("portafolios")}
+              className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
+            >
+              Portafolios
+              {openDropdown === "portafolios" ? (
+                <ChevronUpIcon className="ml-1 h-4 w-4" />
+              ) : (
+                <ChevronDownIcon className="ml-1 h-4 w-4" />
+              )}
+            </button>
+            {openDropdown === "portafolios" && (
+              <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
+                <Link
+                  href="/portafolio/daniel-montero"
+                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                  onClick={closeAllMenus}
+                >
+                  Montero Daniel
+                </Link>
+                <Link
+                  href="/portafolio/luis-riofrio"
+                  className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                  onClick={closeAllMenus}
+                >
+                  Riofrio Luis
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -394,6 +427,27 @@ export default function Navbar() {
             onClick={closeAllMenus}
           >
             S&P 500
+          </Link>
+
+          <hr className="border-gray-700 my-2" />
+
+          {/* Nuevo Portafolios */}
+          <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
+            Portafolios:
+          </span>
+          <Link
+            href="/portafolio/daniel-montero"
+            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+            onClick={closeAllMenus}
+          >
+            Montero Daniel
+          </Link>
+          <Link
+            href="/portafolio/luis-riofrio"
+            className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+            onClick={closeAllMenus}
+          >
+            Riofrio Luis
           </Link>
         </div>
       </div>
