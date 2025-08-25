@@ -1,7 +1,7 @@
 // app/layout.tsx
 import './globals.css';
 import { Inter } from 'next/font/google';
-import Navbar from '../components/Navbar'; // Asegúrate de que esta importación sea correcta
+import Navbar from '../components/Shared/Navbar'; // Asegúrate de que esta importación sea correcta
 
 const inter = Inter({ subsets: ['latin'] });
 
