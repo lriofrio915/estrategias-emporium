@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronDownIcon,
+  ChevronUpIcon,
+  TrashIcon,
+  PlusCircleIcon,
+} from "@heroicons/react/24/outline"; // Importa TrashIcon y PlusCircleIcon
+// Removido: import Link from "next/link"; // No se usa directamente en este componente, se reemplaza con <a> tag para la navegación
 
 // Definimos la interfaz para los datos de cada activo que el frontend necesita
 interface AssetData {
@@ -11,7 +17,7 @@ interface AssetData {
   industry: string;
   price: number | null;
   dailyChange: number | null;
-  error?: string;
+  error?: string; // Para manejar errores individuales por activo
 }
 
 // Definimos la interfaz para la estructura de cada elemento de la API
@@ -34,7 +40,8 @@ interface ApiAssetItem {
 }
 
 export default function LuisRiofrioPortfolioPage() {
-  const [currentTickers] = useState<string[]>([
+  // Cambiado a useState para permitir la adición/eliminación de tickers
+  const [currentTickers, setCurrentTickers] = useState<string[]>([
     "BAS.DE",
     "FTNT",
     "HQY",
@@ -48,60 +55,74 @@ export default function LuisRiofrioPortfolioPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"none" | "sector" | "industry">("none");
+  const [newTickerInput, setNewTickerInput] = useState<string>(""); // Estado para el input del nuevo ticker
+  const [addingTicker, setAddingTicker] = useState<boolean>(false); // Estado para la carga al añadir
 
+  // Función para obtener los datos de un solo ticker desde la API
+  const fetchSingleAssetData = useCallback(async (ticker: string) => {
+    try {
+      const response = await fetch(
+        `/api/portfolio-luis-riofrio?tickers=${ticker}`
+      );
+      if (!response.ok) {
+        throw new Error(`Fallo al obtener los datos para ${ticker}.`);
+      }
+      const apiResponse = await response.json();
+
+      if (
+        apiResponse.success === false ||
+        !apiResponse.data ||
+        apiResponse.data.length === 0
+      ) {
+        return {
+          ticker,
+          error:
+            apiResponse.message || `No se encontraron datos para ${ticker}.`,
+        };
+      }
+
+      const assetItem: ApiAssetItem = apiResponse.data[0];
+      const priceData = assetItem.data?.price;
+      const assetProfileData = assetItem.data?.assetProfile;
+
+      const name = priceData?.longName || priceData?.symbol || assetItem.ticker;
+      const sector = assetProfileData?.sector || "N/A";
+      const industry = assetProfileData?.industry || "N/A";
+      const price = priceData?.regularMarketPrice ?? null;
+      const dailyChange = priceData?.regularMarketChangePercent ?? null;
+
+      return {
+        ticker: assetItem.ticker,
+        name: name,
+        sector: sector,
+        industry: industry,
+        price: price,
+        dailyChange: dailyChange,
+      };
+    } catch (err: unknown) {
+      console.error(`Error al obtener datos de ${ticker}:`, err);
+      return {
+        ticker,
+        error: err instanceof Error ? err.message : "Error desconocido.",
+      };
+    }
+  }, []);
+
+  // Función para obtener los datos de todo el portafolio
   const fetchPortfolioData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const queryParams = new URLSearchParams();
-      currentTickers.forEach((ticker) => queryParams.append("tickers", ticker));
-
-      const response = await fetch(
-        `/api/portfolio-luis-riofrio?${queryParams.toString()}`
-      );
-      if (!response.ok) {
-        throw new Error("Fallo al obtener los datos del portafolio.");
-      }
-      const apiResponse = await response.json();
-
-      if (apiResponse.success === false) {
-        setError(
-          apiResponse.message ||
-            "Error desconocido al obtener datos del portafolio."
-        );
-        setLoading(false);
+      if (currentTickers.length === 0) {
+        setAssets([]);
         return;
       }
-
-      // Usamos la interfaz ApiAssetItem para el tipo de assetItem
-      const transformedAssets: AssetData[] = apiResponse.data.map(
-        (assetItem: ApiAssetItem) => {
-          const priceData = assetItem.data?.price;
-          const assetProfileData = assetItem.data?.assetProfile;
-
-          const name =
-            priceData?.longName || priceData?.symbol || assetItem.ticker;
-          const sector = assetProfileData?.sector || "N/A";
-          const industry = assetProfileData?.industry || "N/A";
-          const price = priceData?.regularMarketPrice ?? null;
-          const dailyChange = priceData?.regularMarketChangePercent ?? null;
-
-          return {
-            ticker: assetItem.ticker,
-            name: name,
-            sector: sector,
-            industry: industry,
-            price: price,
-            dailyChange: dailyChange,
-          };
-        }
+      const fetchedAssets = await Promise.all(
+        currentTickers.map((ticker) => fetchSingleAssetData(ticker))
       );
-
-      setAssets(transformedAssets);
+      setAssets(fetchedAssets.filter((asset) => !asset.error) as AssetData[]); // Filtra los que tienen error
     } catch (err: unknown) {
-      // Cambiado 'any' a 'unknown'
       console.error("Error al obtener datos del portafolio:", err);
-      // Verificamos si el error es una instancia de Error para acceder a 'message'
       setError(
         err instanceof Error
           ? err.message
@@ -110,7 +131,7 @@ export default function LuisRiofrioPortfolioPage() {
     } finally {
       setLoading(false);
     }
-  }, [currentTickers]);
+  }, [currentTickers, fetchSingleAssetData]);
 
   useEffect(() => {
     fetchPortfolioData();
@@ -151,12 +172,49 @@ export default function LuisRiofrioPortfolioPage() {
       : "text-gray-500";
   };
 
-  // --- NUEVA FUNCIÓN PARA OBTENER LA RUTA DEL INFORME ---
+  // Función para obtener la ruta del informe (centralizada y mejorada)
   const getReportPath = (ticker: string) => {
-    if (ticker === "BAS.DE") {
+    // Si el ticker es BAS.DE, usa la ruta específica
+    if (ticker.toUpperCase() === "BAS.DE") {
       return "/portafolio/luis-riofrio/basf";
     }
+    // Para otros tickers, usa una ruta dinámica
     return `/portafolio/luis-riofrio/${ticker.toLowerCase()}`;
+  };
+
+  // --- NUEVAS FUNCIONES PARA AÑADIR Y ELIMINAR ACTIVOS ---
+
+  const handleAddTicker = async (e: React.FormEvent) => {
+    e.preventDefault(); // Previene el recargo de la página
+    const tickerToAdd = newTickerInput.trim().toUpperCase();
+
+    if (!tickerToAdd || currentTickers.includes(tickerToAdd)) {
+      setError("El ticker es inválido o ya está en la lista.");
+      return;
+    }
+
+    setAddingTicker(true);
+    setError(null);
+
+    const newAssetData = await fetchSingleAssetData(tickerToAdd);
+
+    if (newAssetData.error) {
+      setError(newAssetData.error);
+    } else {
+      setCurrentTickers((prevTickers) => [...prevTickers, tickerToAdd]);
+      setAssets((prevAssets) => [...prevAssets, newAssetData as AssetData]);
+      setNewTickerInput(""); // Limpia el input
+    }
+    setAddingTicker(false);
+  };
+
+  const handleDeleteTicker = (tickerToDelete: string) => {
+    setCurrentTickers((prevTickers) =>
+      prevTickers.filter((ticker) => ticker !== tickerToDelete)
+    );
+    setAssets((prevAssets) =>
+      prevAssets.filter((asset) => asset.ticker !== tickerToDelete)
+    );
   };
 
   return (
@@ -172,6 +230,58 @@ export default function LuisRiofrioPortfolioPage() {
             industria.
           </p>
         </header>
+
+        {/* --- FORMULARIO PARA AÑADIR TICKERS --- */}
+        <section className="bg-white rounded-lg shadow-xl p-6 md:p-8 mb-12">
+          <h2 className="text-2xl font-bold text-center text-[#0A2342] mb-6">
+            Añadir Nuevo Activo
+          </h2>
+          <form
+            onSubmit={handleAddTicker}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+          >
+            <input
+              type="text"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2342] w-full sm:w-auto"
+              placeholder="Introduce un Ticker (ej: GOOGL)"
+              value={newTickerInput}
+              onChange={(e) => setNewTickerInput(e.target.value)}
+              disabled={addingTicker}
+            />
+            <button
+              type="submit"
+              className="bg-[#0A2342] text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-800 transition-colors duration-200 flex items-center justify-center w-full sm:w-auto"
+              disabled={addingTicker}
+            >
+              {addingTicker ? (
+                <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+              ) : (
+                <PlusCircleIcon className="h-5 w-5 mr-2" />
+              )}
+              Añadir Activo
+            </button>
+          </form>
+          {error && ( // Muestra errores relacionados con la adición de tickers
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4 text-center">
+              <strong className="font-bold">Error:</strong>
+              <span className="block sm:inline ml-2">{error}</span>
+            </div>
+          )}
+        </section>
 
         <section className="bg-white rounded-lg shadow-xl p-6 md:p-8 mb-12">
           <h2 className="text-3xl font-bold text-center text-[#0A2342] mb-6">
@@ -200,14 +310,6 @@ export default function LuisRiofrioPortfolioPage() {
                 ></path>
               </svg>
               <p className="mt-4">Cargando datos...</p>
-            </div>
-          ) : error ? (
-            <div
-              className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative"
-              role="alert"
-            >
-              <strong className="font-bold">Error:</strong>
-              <span className="block sm:inline ml-2">{error}</span>
             </div>
           ) : sortedAssets.length === 0 ? (
             <div className="text-center py-10 text-gray-500">
@@ -282,6 +384,13 @@ export default function LuisRiofrioPortfolioPage() {
                     >
                       Informe
                     </th>
+                    <th
+                      scope="col"
+                      className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider"
+                    >
+                      Acciones
+                    </th>
+                    {/* Nueva columna para el botón de eliminar */}
                   </tr>
                 </thead>
                 <tbody>
@@ -320,13 +429,28 @@ export default function LuisRiofrioPortfolioPage() {
                           : "N/A"}
                       </td>
                       <td className="py-4 px-6 text-sm">
-                        <a
-                          // --- AQUÍ SE UTILIZA LA NUEVA FUNCIÓN getReportPath ---
-                          href={getReportPath(asset.ticker)}
-                          className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors duration-200"
+                        {asset.error ? ( // Muestra el error si el activo individual falló
+                          <span className="text-red-500 text-xs">
+                            Error de carga
+                          </span>
+                        ) : (
+                          <a // Reemplazamos Link con <a>
+                            href={getReportPath(asset.ticker)}
+                            className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors duration-200"
+                          >
+                            Ver más
+                          </a>
+                        )}
+                      </td>
+                      {/* Corregido: Centrado y cursor-pointer */}
+                      <td className="py-4 px-6 text-sm text-gray-800 flex justify-center items-center">
+                        <button
+                          onClick={() => handleDeleteTicker(asset.ticker)}
+                          className="text-red-600 hover:text-red-800 transition-colors duration-200 cursor-pointer"
+                          title={`Eliminar ${asset.ticker}`}
                         >
-                          Ver más
-                        </a>
+                          <TrashIcon className="h-5 w-5" />
+                        </button>
                       </td>
                     </tr>
                   ))}
