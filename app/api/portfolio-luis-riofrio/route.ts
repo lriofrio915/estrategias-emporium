@@ -3,49 +3,98 @@ import yahooFinance from "yahoo-finance2";
 
 export async function GET(request: Request) {
   try {
-    // Obtenemos los parámetros de consulta de la URL del objeto 'request'.
-    // Esto resuelve la advertencia de 'request' no utilizado.
     const { searchParams } = new URL(request.url);
-    // Extraemos todos los valores asociados con la clave 'tickers'.
-    const tickers = searchParams.getAll('tickers');
+    const tickers = searchParams.getAll("tickers");
 
-    // Si no se proporcionaron tickers, devolvemos un error.
     if (tickers.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          message: "No se proporcionaron tickers para consultar. Por favor, especifica al menos un ticker en los parámetros de consulta (ej: ?tickers=AAPL&tickers=MSFT).",
+          message:
+            "No se proporcionaron tickers para consultar. Por favor, especifica al menos un ticker en los parámetros de consulta (ej: ?tickers=AAPL&tickers=MSFT).",
         },
         { status: 400 }
       );
     }
 
-    // Para cada ticker recibido, obtenemos la información completa.
-    // Incluimos solo los módulos necesarios para optimizar la llamada.
-    const promises = tickers.map((ticker) =>
-      yahooFinance.quoteSummary(ticker, {
-        modules: [
-          "price",          // Para precio actual y cambio diario
-          "summaryDetail",  // Puede contener información adicional útil
-          "assetProfile",   // Para sector e industria
-        ],
-      })
-    );
+    // Para cada ticker, obtenemos tanto el quoteSummary como los datos históricos
+    const promises = tickers.map(async (ticker) => {
+      try {
+        // Obtener datos actuales
+        const quoteSummary = await yahooFinance.quoteSummary(ticker, {
+          modules: [
+            "price",
+            "summaryDetail",
+            "assetProfile",
+            "defaultKeyStatistics",
+            "financialData",
+          ],
+        });
 
-    // Esperamos a que todas las promesas se resuelvan.
+        // Obtener datos históricos - 5 años de datos para tener suficiente historial
+        const today = new Date();
+        const fiveYearsAgo = new Date();
+        fiveYearsAgo.setFullYear(today.getFullYear() - 5);
+
+        const historicalData = await yahooFinance.historical(ticker, {
+          period1: fiveYearsAgo, // ← 5 años atrás
+          period2: today,
+          interval: "1d", // Datos diarios
+        });
+
+        return {
+          ticker: ticker,
+          data: {
+            ...quoteSummary,
+            historical: historicalData,
+          },
+        };
+      } catch (error) {
+        console.error(`Error fetching data for ${ticker}:`, error);
+        // Si hay error con datos históricos, devolver solo quoteSummary
+        try {
+          const quoteSummary = await yahooFinance.quoteSummary(ticker, {
+            modules: [
+              "price",
+              "summaryDetail",
+              "assetProfile",
+              "defaultKeyStatistics",
+              "financialData",
+            ],
+          });
+
+          return {
+            ticker: ticker,
+            data: {
+              ...quoteSummary,
+              historical: [], // Devolver array vacío si hay error
+            },
+          };
+        } catch (innerError) {
+          console.error(
+            `Error fetching quote summary for ${ticker}:`,
+            innerError
+          );
+          return {
+            ticker: ticker,
+            data: {
+              historical: [],
+            },
+          };
+        }
+      }
+    });
+
     const results = await Promise.all(promises);
 
-    // Formateamos la respuesta para que sea más fácil de consumir.
-    const data = results.map((result, index) => {
-      const ticker = tickers[index];
-      // Devolvemos el ticker y todos los datos recibidos, para que el frontend pueda extraer lo que necesite.
+    // Formateamos la respuesta
+    const data = results.map((result) => {
       return {
-        ticker: ticker,
-        data: result,
+        ticker: result.ticker,
+        data: result.data,
       };
     });
 
-    // Retornamos la respuesta como un JSON.
     return NextResponse.json({
       success: true,
       data: data,

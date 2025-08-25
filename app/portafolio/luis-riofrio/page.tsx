@@ -151,6 +151,14 @@ export default function LuisRiofrioPortfolioPage() {
       : "text-gray-500";
   };
 
+  // --- NUEVA FUNCIÓN PARA OBTENER LA RUTA DEL INFORME ---
+  const getReportPath = (ticker: string) => {
+    if (ticker === "BAS.DE") {
+      return "/portafolio/luis-riofrio/basf";
+    }
+    return `/portafolio/luis-riofrio/${ticker.toLowerCase()}`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 pt-2 font-inter">
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
@@ -313,7 +321,8 @@ export default function LuisRiofrioPortfolioPage() {
                       </td>
                       <td className="py-4 px-6 text-sm">
                         <a
-                          href={`/portafolios/luis-riofrio/${asset.ticker.toLowerCase()}`}
+                          // --- AQUÍ SE UTILIZA LA NUEVA FUNCIÓN getReportPath ---
+                          href={getReportPath(asset.ticker)}
                           className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors duration-200"
                         >
                           Ver más
