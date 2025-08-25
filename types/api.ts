@@ -1,8 +1,8 @@
 // types/api.ts
 
-// Interfaz para datos históricos (convertir string a Date después)
+// Interfaz para datos históricos de precios
 export interface HistoricalData {
-  date: string; // Cambiado a string
+  date: string;
   open: number;
   high: number;
   low: number;
@@ -11,10 +11,62 @@ export interface HistoricalData {
   adjClose?: number;
 }
 
+// Nueva interfaz para los datos históricos financieros
+export interface FinancialHistoryItem {
+  year: string;
+  freeCashFlow: number;
+  totalDebt: number;
+  totalEquity: number;
+  debtToEquity: number;
+  operatingCashFlow?: number;
+  capitalExpenditures?: number;
+}
+
+// Interfaces para datos financieros históricos crudos de Yahoo Finance
+export interface CashflowStatement {
+  maxAge?: number;
+  endDate?: { raw: number; fmt: string };
+  freeCashflow?: { raw: number; fmt: string };
+  operatingCashflow?: { raw: number; fmt: string };
+  capitalExpenditures?: { raw: number; fmt: string };
+  investments?: { raw: number; fmt: string };
+  netBorrowings?: { raw: number; fmt: string };
+  otherCashflowFromFinancing?: { raw: number; fmt: string };
+  otherCashflowFromInvesting?: { raw: number; fmt: string };
+}
+
+export interface BalanceSheet {
+  maxAge?: number;
+  endDate?: { raw: number; fmt: string };
+  totalDebt?: { raw: number; fmt: string };
+  totalStockholderEquity?: { raw: number; fmt: string };
+  totalAssets?: { raw: number; fmt: string };
+  currentAssets?: { raw: number; fmt: string };
+  currentLiabilities?: { raw: number; fmt: string };
+  longTermDebt?: { raw: number; fmt: string };
+}
+
+export interface IncomeStatement {
+  maxAge?: number;
+  endDate?: { raw: number; fmt: string };
+  totalRevenue?: { raw: number; fmt: string };
+  netIncome?: { raw: number; fmt: string };
+  grossProfit?: { raw: number; fmt: string };
+  operatingIncome?: { raw: number; fmt: string };
+  ebitda?: { raw: number; fmt: string };
+}
+
+// Interfaz para datos financieros (puede ser eliminada si no se usa)
+export interface FinancialData {
+  revenueQuarterly?: { date: string; revenue: number }[];
+  earningsQuarterly?: { date: string; earnings: number }[];
+}
+
 // Interfaz para la estructura esperada del dato de un activo de la API
 export interface ApiAssetItem {
   ticker: string;
   data: {
+    financialHistory: FinancialHistoryItem[];
     price?: {
       maxAge?: number;
       regularMarketChangePercent?: number;
@@ -195,7 +247,17 @@ export interface ApiAssetItem {
       profitMargins?: number;
       financialCurrency?: string;
     };
-    historical?: HistoricalData[]; // Ahora coincide
+    historical?: HistoricalData[];
+    // Nuevos campos para datos financieros históricos crudos
+    cashflowStatementHistory?: {
+      cashflowStatements: CashflowStatement[];
+    };
+    balanceSheetHistory?: {
+      balanceSheets: BalanceSheet[];
+    };
+    incomeStatementHistory?: {
+      incomeStatements: IncomeStatement[];
+    };
   };
 }
 

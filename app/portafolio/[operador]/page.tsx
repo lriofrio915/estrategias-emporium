@@ -1,15 +1,17 @@
+// app/portafolio/[operador]/page.tsx
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation"; // Importa useRouter
 import {
   ChevronDownIcon,
   ChevronUpIcon,
   TrashIcon,
   PlusCircleIcon,
-} from "@heroicons/react/24/outline"; // Importa TrashIcon y PlusCircleIcon
-// Removido: import Link from "next/link"; // No se usa directamente en este componente, se reemplaza con <a> tag para la navegación
+  ExclamationCircleIcon, // Nuevo icono para el modal de confirmación
+} from "@heroicons/react/24/outline";
 
-// Definimos la interfaz para los datos de cada activo que el frontend necesita
+// Definimos la interfaz para los datos de cada activo
 interface AssetData {
   ticker: string;
   name: string;
@@ -21,7 +23,6 @@ interface AssetData {
 }
 
 // Definimos la interfaz para la estructura de cada elemento de la API
-// Basado en el output del `portfolio-api-handler`
 interface ApiAssetItem {
   ticker: string;
   data: {
@@ -35,35 +36,68 @@ interface ApiAssetItem {
       sector?: string;
       industry?: string;
     };
-    // Podemos añadir otros módulos si es necesario, pero solo los relevantes para la extracción aquí
   };
 }
 
-export default function LuisRiofrioPortfolioPage() {
-  // Cambiado a useState para permitir la adición/eliminación de tickers
-  const [currentTickers, setCurrentTickers] = useState<string[]>([
-    "BAS.DE",
-    "FTNT",
-    "HQY",
-    "LH",
-    "MRVL",
-    "OKTA",
-    "PM",
-  ]);
+// Interfaz para la estructura del portafolio, consistente con Navbar y AddPortfolioForm
+interface Portfolio {
+  name: string;
+  slug: string;
+  tickers: string[];
+}
 
+export default function PortfolioPage() {
+  const params = useParams();
+  const router = useRouter(); // Inicializa el router
+  const operadorSlug = params.operador as string;
+
+  const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [currentTickers, setCurrentTickers] = useState<string[]>([]);
   const [assets, setAssets] = useState<AssetData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<"none" | "sector" | "industry">("none");
-  const [newTickerInput, setNewTickerInput] = useState<string>(""); // Estado para el input del nuevo ticker
-  const [addingTicker, setAddingTicker] = useState<boolean>(false); // Estado para la carga al añadir
+  const [newTickerInput, setNewTickerInput] = useState<string>("");
+  const [addingTicker, setAddingTicker] = useState<boolean>(false);
+  const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false); // Estado para el modal de confirmación
+
+  // Carga los datos iniciales del portafolio al montar el componente
+  useEffect(() => {
+    if (typeof window !== "undefined" && operadorSlug) {
+      const savedPortfolios = localStorage.getItem("portfolios");
+      if (savedPortfolios) {
+        try {
+          const allPortfolios: Portfolio[] = JSON.parse(savedPortfolios);
+          const foundPortfolio = allPortfolios.find(
+            (p) => p.slug === operadorSlug
+          );
+
+          if (foundPortfolio) {
+            setPortfolio(foundPortfolio);
+            setCurrentTickers(foundPortfolio.tickers);
+          } else {
+            setError("Portafolio no encontrado para este operador.");
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error(
+            "Error al parsear los portafolios de localStorage:",
+            err
+          );
+          setError("Error al cargar los datos del portafolio.");
+          setLoading(false);
+        }
+      } else {
+        setError("No hay portafolios guardados.");
+        setLoading(false);
+      }
+    }
+  }, [operadorSlug]);
 
   // Función para obtener los datos de un solo ticker desde la API
   const fetchSingleAssetData = useCallback(async (ticker: string) => {
     try {
-      const response = await fetch(
-        `/api/portfolio-luis-riofrio?tickers=${ticker}`
-      );
+      const response = await fetch(`/api/stocks?tickers=${ticker}`);
       if (!response.ok) {
         throw new Error(`Fallo al obtener los datos para ${ticker}.`);
       }
@@ -115,12 +149,13 @@ export default function LuisRiofrioPortfolioPage() {
     try {
       if (currentTickers.length === 0) {
         setAssets([]);
+        setLoading(false);
         return;
       }
       const fetchedAssets = await Promise.all(
         currentTickers.map((ticker) => fetchSingleAssetData(ticker))
       );
-      setAssets(fetchedAssets.filter((asset) => !asset.error) as AssetData[]); // Filtra los que tienen error
+      setAssets(fetchedAssets.filter((asset) => !asset.error) as AssetData[]);
     } catch (err: unknown) {
       console.error("Error al obtener datos del portafolio:", err);
       setError(
@@ -133,9 +168,15 @@ export default function LuisRiofrioPortfolioPage() {
     }
   }, [currentTickers, fetchSingleAssetData]);
 
+  // Vuelve a cargar los datos de los tickers cada vez que cambia la lista currentTickers
   useEffect(() => {
-    fetchPortfolioData();
-  }, [fetchPortfolioData]);
+    if (portfolio && currentTickers.length > 0) {
+      fetchPortfolioData();
+    } else if (portfolio && currentTickers.length === 0) {
+      setAssets([]);
+      setLoading(false);
+    }
+  }, [portfolio, currentTickers, fetchPortfolioData]);
 
   const sortedAssets = useMemo(() => {
     const sortableAssets = [...assets];
@@ -172,57 +213,157 @@ export default function LuisRiofrioPortfolioPage() {
       : "text-gray-500";
   };
 
-  // Función para obtener la ruta del informe (centralizada y mejorada)
-  const getReportPath = (ticker: string) => {
-    // Si el ticker es BAS.DE, usa la ruta específica
-    if (ticker.toUpperCase() === "BAS.DE") {
-      return "/portafolio/luis-riofrio/basf";
-    }
-    // Para otros tickers, usa una ruta dinámica
-    return `/portafolio/luis-riofrio/${ticker.toLowerCase()}`;
-  };
-
-  // --- NUEVAS FUNCIONES PARA AÑADIR Y ELIMINAR ACTIVOS ---
+  const updatePortfoliosInLocalStorage = useCallback(
+    (updatedPortfolio: Portfolio) => {
+      if (typeof window !== "undefined") {
+        const savedPortfolios = localStorage.getItem("portfolios");
+        if (savedPortfolios) {
+          try {
+            const allPortfolios: Portfolio[] = JSON.parse(savedPortfolios);
+            const updatedAllPortfolios = allPortfolios.map((p) =>
+              p.slug === updatedPortfolio.slug ? updatedPortfolio : p
+            );
+            localStorage.setItem(
+              "portfolios",
+              JSON.stringify(updatedAllPortfolios)
+            );
+          } catch (err) {
+            console.error(
+              "Error al actualizar portafolios en localStorage:",
+              err
+            );
+          }
+        }
+      }
+    },
+    []
+  );
 
   const handleAddTicker = async (e: React.FormEvent) => {
-    e.preventDefault(); // Previene el recargo de la página
+    e.preventDefault();
     const tickerToAdd = newTickerInput.trim().toUpperCase();
 
-    if (!tickerToAdd || currentTickers.includes(tickerToAdd)) {
-      setError("El ticker es inválido o ya está en la lista.");
+    // Modificación aquí: Mensaje de error más específico
+    if (!tickerToAdd) {
+      setError("Por favor, introduce un ticker para añadir.");
+      return;
+    }
+    if (currentTickers.includes(tickerToAdd)) {
+      setError("Este ticker ya está en la lista.");
       return;
     }
 
     setAddingTicker(true);
-    setError(null);
+    setError(null); // Limpia cualquier error anterior
 
     const newAssetData = await fetchSingleAssetData(tickerToAdd);
 
     if (newAssetData.error) {
       setError(newAssetData.error);
     } else {
-      setCurrentTickers((prevTickers) => [...prevTickers, tickerToAdd]);
+      const updatedTickers = [...currentTickers, tickerToAdd];
+      setCurrentTickers(updatedTickers);
       setAssets((prevAssets) => [...prevAssets, newAssetData as AssetData]);
-      setNewTickerInput(""); // Limpia el input
+      setNewTickerInput("");
+
+      // Actualizar localStorage con los nuevos tickers para este portafolio
+      if (portfolio) {
+        const updatedPortfolio: Portfolio = {
+          ...portfolio,
+          tickers: updatedTickers,
+        };
+        setPortfolio(updatedPortfolio);
+        updatePortfoliosInLocalStorage(updatedPortfolio);
+      }
     }
     setAddingTicker(false);
   };
 
   const handleDeleteTicker = (tickerToDelete: string) => {
-    setCurrentTickers((prevTickers) =>
-      prevTickers.filter((ticker) => ticker !== tickerToDelete)
+    const updatedTickers = currentTickers.filter(
+      (ticker) => ticker !== tickerToDelete
     );
+    setCurrentTickers(updatedTickers);
     setAssets((prevAssets) =>
       prevAssets.filter((asset) => asset.ticker !== tickerToDelete)
     );
+
+    // Actualizar localStorage con los tickers eliminados para este portafolio
+    if (portfolio) {
+      const updatedPortfolio: Portfolio = {
+        ...portfolio,
+        tickers: updatedTickers,
+      };
+      setPortfolio(updatedPortfolio);
+      updatePortfoliosInLocalStorage(updatedPortfolio);
+    }
   };
+
+  const getReportPath = (ticker: string) => {
+    return `/portafolio/${operadorSlug}/${ticker.toLowerCase()}`;
+  };
+
+  // Función para abrir el modal de confirmación de eliminación
+  const openDeleteConfirmModal = () => {
+    setShowConfirmModal(true);
+  };
+
+  // Función para cerrar el modal de confirmación
+  const closeDeleteConfirmModal = () => {
+    setShowConfirmModal(false);
+  };
+
+  // Función para eliminar el portafolio
+  const confirmDeletePortfolio = () => {
+    if (typeof window !== "undefined") {
+      const savedPortfolios = localStorage.getItem("portfolios");
+      if (savedPortfolios) {
+        try {
+          const allPortfolios: Portfolio[] = JSON.parse(savedPortfolios);
+          // Filtra el portafolio a eliminar por su slug
+          const updatedAllPortfolios = allPortfolios.filter(
+            (p) => p.slug !== operadorSlug
+          );
+          localStorage.setItem(
+            "portfolios",
+            JSON.stringify(updatedAllPortfolios)
+          );
+        } catch (err) {
+          console.error("Error al eliminar portafolio de localStorage:", err);
+        }
+      }
+    }
+    closeDeleteConfirmModal(); // Cierra el modal
+    router.push("/"); // Redirige a la página de inicio
+    // router.refresh(); // Eliminado: router.refresh() no es tan fiable para un refresh completo
+    window.location.reload(); // Agregado: Fuerza un refresco completo de la página para actualizar el Navbar
+  };
+
+  // Muestra un mensaje de carga o error si no hay datos iniciales
+  if (loading && !portfolio && !error) {
+    return (
+      <div className="pt-24 min-h-screen bg-[#0A192F] text-white flex justify-center items-center">
+        <p>Cargando datos del portafolio...</p>
+      </div>
+    );
+  }
+
+  if (error && !portfolio) { // Solo muestra el error si no hay portafolio cargado
+    return (
+      <div className="pt-24 min-h-screen bg-[#0A192F] text-white flex justify-center items-center">
+        <p className="text-red-500 text-lg">
+          {error || "No se pudo cargar el portafolio."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 pt-2 font-inter">
       <div className="container mx-auto p-4 md:p-8 max-w-7xl">
         <header className="text-center mb-12 mt-8">
           <h1 className="text-4xl md:text-5xl font-extrabold text-[#0A2342] mb-4">
-            Portafolio de Luis Riofrío
+            Portafolio de {portfolio?.name || "Cargando..."}
           </h1>
           <p className="text-lg md:text-xl text-[#849E8F]">
             Un resumen de los activos que componen el portafolio, con
@@ -231,51 +372,62 @@ export default function LuisRiofrioPortfolioPage() {
           </p>
         </header>
 
-        {/* --- FORMULARIO PARA AÑADIR TICKERS --- */}
+        {/* --- FORMULARIO PARA AÑADIR TICKERS Y BOTÓN DE ELIMINAR --- */}
         <section className="bg-white rounded-lg shadow-xl p-6 md:p-8 mb-12">
           <h2 className="text-2xl font-bold text-center text-[#0A2342] mb-6">
-            Añadir Nuevo Activo
+            Gestionar Activos
           </h2>
-          <form
-            onSubmit={handleAddTicker}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
-          >
-            <input
-              type="text"
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2342] w-full sm:w-auto"
-              placeholder="Introduce un Ticker (ej: GOOGL)"
-              value={newTickerInput}
-              onChange={(e) => setNewTickerInput(e.target.value)}
-              disabled={addingTicker}
-            />
-            <button
-              type="submit"
-              className="bg-[#0A2342] text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-800 transition-colors duration-200 flex items-center justify-center w-full sm:w-auto"
-              disabled={addingTicker}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-6"> {/* Contenedor para los botones */}
+            <form
+              onSubmit={handleAddTicker}
+              className="flex flex-col sm:flex-row gap-4 justify-center items-center w-full sm:w-auto"
             >
-              {addingTicker ? (
-                <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-              ) : (
-                <PlusCircleIcon className="h-5 w-5 mr-2" />
-              )}
-              Añadir Activo
+              <input
+                type="text"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0A2342] w-full sm:w-auto text-gray-900"
+                placeholder="Introduce un Ticker (ej: GOOGL)"
+                value={newTickerInput}
+                onChange={(e) => setNewTickerInput(e.target.value)}
+                disabled={addingTicker}
+              />
+              <button
+                type="submit"
+                className="bg-[#0A2342] text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-800 transition-colors duration-200 flex items-center justify-center w-full sm:w-auto"
+                disabled={addingTicker}
+              >
+                {addingTicker ? (
+                  <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                ) : (
+                  <PlusCircleIcon className="h-5 w-5 mr-2" />
+                )}
+                Añadir Activo
+              </button>
+            </form>
+            {/* Botón para eliminar el portafolio completo, ahora al lado del formulario */}
+            <button
+              onClick={openDeleteConfirmModal}
+              className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors duration-200 flex items-center justify-center w-full sm:w-auto"
+            >
+              <TrashIcon className="h-5 w-5 mr-2" />
+              Eliminar Portafolio
             </button>
-          </form>
-          {error && ( // Muestra errores relacionados con la adición de tickers
+          </div>
+          {/* Muestra el error aquí, dentro de la sección del formulario */}
+          {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mt-4 text-center">
               <strong className="font-bold">Error:</strong>
               <span className="block sm:inline ml-2">{error}</span>
@@ -390,7 +542,6 @@ export default function LuisRiofrioPortfolioPage() {
                     >
                       Acciones
                     </th>
-                    {/* Nueva columna para el botón de eliminar */}
                   </tr>
                 </thead>
                 <tbody>
@@ -429,12 +580,12 @@ export default function LuisRiofrioPortfolioPage() {
                           : "N/A"}
                       </td>
                       <td className="py-4 px-6 text-sm">
-                        {asset.error ? ( // Muestra el error si el activo individual falló
+                        {asset.error ? (
                           <span className="text-red-500 text-xs">
                             Error de carga
                           </span>
                         ) : (
-                          <a // Reemplazamos Link con <a>
+                          <a
                             href={getReportPath(asset.ticker)}
                             className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors duration-200"
                           >
@@ -442,7 +593,6 @@ export default function LuisRiofrioPortfolioPage() {
                           </a>
                         )}
                       </td>
-                      {/* Corregido: Centrado y cursor-pointer */}
                       <td className="py-4 px-6 text-sm text-gray-800 flex justify-center items-center">
                         <button
                           onClick={() => handleDeleteTicker(asset.ticker)}
@@ -473,6 +623,36 @@ export default function LuisRiofrioPortfolioPage() {
           </p>
         </footer>
       </div>
+
+      {/* Modal de Confirmación de Eliminación */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm relative text-center">
+            <ExclamationCircleIcon className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-800 mb-4">
+              ¿Estás seguro de que quieres eliminar este portafolio?
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Esta acción es irreversible y eliminará el portafolio
+              &quot;{portfolio?.name}&quot; de forma permanente.
+            </p>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={closeDeleteConfirmModal}
+                className="px-6 py-2 bg-gray-300 text-gray-800 rounded-md font-semibold hover:bg-gray-400 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeletePortfolio}
+                className="px-6 py-2 bg-red-600 text-white rounded-md font-semibold hover:bg-red-700 transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

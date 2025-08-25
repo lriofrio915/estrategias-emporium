@@ -28,7 +28,7 @@ export default function ReportPage({ ticker }: ReportPageProps) {
     setLoading(true);
     setError(null);
     try {
-      const apiUrl = `${window.location.origin}/api/portfolio-luis-riofrio?tickers=${ticker}`;
+      const apiUrl = `${window.location.origin}/api/stocks?tickers=${ticker}`;
       const response = await fetch(apiUrl);
       if (!response.ok) {
         throw new Error(`Fallo al obtener los datos de ${ticker}.`);
@@ -42,7 +42,6 @@ export default function ReportPage({ ticker }: ReportPageProps) {
       }
 
       if (apiResponse.data && apiResponse.data.length > 0) {
-        console.log("Datos recibidos:", apiResponse.data[0]);
         setAssetData(apiResponse.data[0]);
       } else {
         setError(`No se encontraron datos para ${ticker}.`);
