@@ -1,6 +1,97 @@
 // app/api/stocks/route.ts
 import { NextResponse } from "next/server";
 import yahooFinance from "yahoo-finance2";
+import {
+  FinancialHistoryItem,
+  CashflowStatementHistory,
+  BalanceSheetHistory,
+  IncomeStatementHistory,
+  // Importamos los tipos auxiliares también para que las funciones helper puedan usarlos
+  YahooFinanceRawValue,
+  YahooFinanceDateValue,
+} from "@/types/api";
+
+// Definicines más específicas para los módulos que pueden ser retornados por quoteSummary
+// Estos son los tipos que reemplazarán a `any` en QuoteSummary.
+interface PriceData {
+  [key: string]: unknown;
+}
+interface SummaryDetailData {
+  [key: string]: unknown;
+}
+interface AssetProfileData {
+  [key: string]: unknown;
+}
+interface DefaultKeyStatisticsData {
+  [key: string]: unknown;
+}
+interface FinancialDataModule {
+  [key: string]: unknown;
+} // Renombrado para evitar conflicto con el importado
+
+// Interfaz QuoteSummary: la mantenemos aquí ya que es específica de esta ruta
+interface QuoteSummary {
+  cashflowStatementHistory?: CashflowStatementHistory;
+  balanceSheetHistory?: BalanceSheetHistory;
+  incomeStatementHistory?: IncomeStatementHistory;
+
+  // Reemplazamos 'any' con interfaces más específicas (o Record<string, unknown> si son muy variables)
+  price?: PriceData;
+  summaryDetail?: SummaryDetailData;
+  assetProfile?: AssetProfileData;
+  defaultKeyStatistics?: DefaultKeyStatisticsData;
+  financialData?: FinancialDataModule;
+
+  // Permitir otras propiedades que Yahoo Finance pueda devolver
+  // Este índice de firma es útil si hay propiedades que no se tipan explícitamente
+  // pero que sabes que pueden existir. Para evitar el error de 'any', usamos 'unknown'.
+  [key: string]: unknown;
+}
+
+// Tipo auxiliar para el parámetro de getRawValue, ahora incluyendo 'undefined'
+type GetRawValueParam = YahooFinanceRawValue | undefined;
+
+// Función helper para extraer el valor numérico
+function getRawValue(value: GetRawValueParam): number {
+  if (typeof value === "number") {
+    return value;
+  }
+  // Si el valor es undefined, regresamos 0.
+  if (value === undefined) {
+    return 0;
+  }
+  // El resto del código asume que value es un objeto con 'raw'
+  if (value && typeof value === "object" && "raw" in value) {
+    return value.raw || 0;
+  }
+  return 0; // Valor de retorno por defecto para cualquier otro caso
+}
+
+// Tipo auxiliar para el parámetro de getYearFromDate, ahora incluyendo 'undefined'
+type GetYearFromDateParam = YahooFinanceDateValue | undefined;
+
+// Función helper para extraer el año de endDate
+function getYearFromDate(date: GetYearFromDateParam): string | null {
+  if (date instanceof Date) {
+    return date.getFullYear().toString();
+  }
+  // Si la fecha es undefined, regresamos null.
+  if (date === undefined) {
+    return null;
+  }
+  // El resto del código asume que date es un objeto con 'raw' o 'fmt'
+  if (date && typeof date === "object") {
+    if (date.fmt) {
+      return date.fmt.substring(0, 4);
+    }
+    if (date.raw) {
+      // Si es un timestamp, convertirlo a año
+      const dateObj = new Date(date.raw * 1000);
+      return dateObj.getFullYear().toString();
+    }
+  }
+  return null;
+}
 
 export async function GET(request: Request) {
   try {
@@ -20,7 +111,7 @@ export async function GET(request: Request) {
 
     const promises = tickers.map(async (ticker) => {
       try {
-        // Obtener datos actuales con los módulos CORRECTOS
+        // Obtener datos actuales
         const quoteSummary = await yahooFinance.quoteSummary(ticker, {
           modules: [
             "price",
@@ -28,7 +119,6 @@ export async function GET(request: Request) {
             "assetProfile",
             "defaultKeyStatistics",
             "financialData",
-            // Módulos CORREGIDOS para datos históricos
             "cashflowStatementHistory",
             "balanceSheetHistory",
             "incomeStatementHistory",
@@ -41,7 +131,9 @@ export async function GET(request: Request) {
         );
 
         // Procesar datos históricos financieros
-        const financialHistory = processFinancialHistory(quoteSummary);
+        const financialHistory = processFinancialHistory(
+          quoteSummary as QuoteSummary
+        );
         console.log(`Financial history para ${ticker}:`, financialHistory);
 
         // Obtener datos históricos de precios
@@ -66,7 +158,7 @@ export async function GET(request: Request) {
       } catch (error) {
         console.error(`Error completo fetching data for ${ticker}:`, error);
 
-        // Fallback: intentar obtener solo datos básicos
+        // Fallback
         try {
           const quoteSummary = await yahooFinance.quoteSummary(ticker, {
             modules: [
@@ -118,79 +210,58 @@ export async function GET(request: Request) {
   }
 }
 
-// Función CORREGIDA para procesar el historial financiero
-function processFinancialHistory(quoteSummary: any): Array<{
-  year: string;
-  freeCashFlow: number;
-  totalDebt: number;
-  totalEquity: number;
-  debtToEquity: number;
-  operatingCashFlow?: number;
-  capitalExpenditures?: number;
-}> {
+// Función para procesar el historial financiero
+function processFinancialHistory(
+  quoteSummary: QuoteSummary
+): FinancialHistoryItem[] {
   try {
-    const financialHistory = [];
+    const financialHistory: FinancialHistoryItem[] = [];
 
-    // VERIFICAR ESTRUCTURA DE DATOS
-    console.log("Cashflow structure:", quoteSummary.cashflowStatementHistory);
-    console.log("Balance sheet structure:", quoteSummary.balanceSheetHistory);
-
-    // Obtener datos de cashflow - estructura CORRECTA
     const cashflowStatements =
       quoteSummary.cashflowStatementHistory?.cashflowStatements || [];
-    const balanceSheets = quoteSummary.balanceSheetHistory?.balanceSheets || [];
+    const balanceStatements =
+      quoteSummary.balanceSheetHistory?.balanceSheetStatements || [];
 
-    console.log(`Cashflow statements: ${cashflowStatements.length}`);
-    console.log(`Balance sheets: ${balanceSheets.length}`);
+    const yearsData: Record<string, Partial<FinancialHistoryItem>> = {};
 
-    // Mapear años disponibles
-    const yearsData: { [key: string]: any } = {};
-
-    // Procesar cashflow statements
-    cashflowStatements.forEach((statement: any) => {
-      const date = statement.endDate;
-      if (date && date.fmt) {
-        const year = date.fmt.substring(0, 4);
+    cashflowStatements.forEach((statement) => {
+      const year = getYearFromDate(statement.endDate);
+      if (year) {
         yearsData[year] = {
           ...yearsData[year],
-          year: year,
-          freeCashFlow:
-            statement.freeCashFlow?.raw || statement.freeCashflow?.raw || 0,
-          operatingCashFlow:
-            statement.operatingCashFlow?.raw ||
-            statement.operatingCashflow?.raw ||
-            0,
-          capitalExpenditures: statement.capitalExpenditures?.raw || 0,
+          year,
+          // Accedemos a las propiedades con 'f' minúscula que devuelve yahoo-finance2
+          freeCashFlow: getRawValue(statement.freeCashflow),
+          operatingCashFlow: getRawValue(statement.operatingCashflow),
+          capitalExpenditures: getRawValue(statement.capitalExpenditures),
         };
       }
     });
 
-    // Procesar balance sheets
-    balanceSheets.forEach((balance: any) => {
-      const date = balance.endDate;
-      if (date && date.fmt) {
-        const year = date.fmt.substring(0, 4);
+    balanceStatements.forEach((balance) => {
+      const year = getYearFromDate(balance.endDate);
+      if (year) {
         yearsData[year] = {
           ...yearsData[year],
-          year: year,
-          totalDebt: balance.totalDebt?.raw || 0,
-          totalEquity:
-            balance.totalStockholderEquity?.raw ||
-            balance.totalEquity?.raw ||
-            0,
-          totalAssets: balance.totalAssets?.raw || 0,
+          year,
+          totalDebt: getRawValue(balance.totalDebt),
+          // Usamos totalStockholderEquity primero, luego totalEquity si está disponible
+          totalEquity: getRawValue(
+            balance.totalStockholderEquity || balance.totalEquity
+          ),
         };
       }
     });
 
-    // Crear array con datos combinados
     for (const year in yearsData) {
       const data = yearsData[year];
       const debtToEquity =
-        data.totalEquity > 0 ? (data.totalDebt / data.totalEquity) * 100 : 0;
+        data.totalEquity && data.totalEquity > 0
+          ? (data.totalDebt! / data.totalEquity) * 100
+          : 0;
 
       financialHistory.push({
-        year: data.year,
+        year: data.year!,
         freeCashFlow: data.freeCashFlow || 0,
         totalDebt: data.totalDebt || 0,
         totalEquity: data.totalEquity || 0,
@@ -200,7 +271,6 @@ function processFinancialHistory(quoteSummary: any): Array<{
       });
     }
 
-    // Ordenar por año (más reciente primero)
     return financialHistory
       .sort((a, b) => parseInt(b.year) - parseInt(a.year))
       .slice(0, 10);
