@@ -10,7 +10,7 @@ interface PageProps {
 
 export default async function DynamicReportPage({ params }: PageProps) {
   // Desestructuramos la Promise para obtener los valores
-  const { ticker, operador } = await params;
+  const { ticker } = await params;
 
   // Renderizamos el ReportPage, pasándole el ticker obtenido de la URL
   return <ReportPage ticker={ticker.toUpperCase()} />;

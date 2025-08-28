@@ -1,7 +1,5 @@
-// components/ReportPage/ReportPage.tsx
 "use client";
 
-// Elimina useMemo de la importación
 import { useState, useEffect, useCallback } from "react";
 import { ApiAssetItem } from "@/types/api";
 import CompanyOverview from "../CompanyOverview/CompanyOverview";
@@ -20,6 +18,7 @@ interface ReportPageProps {
 }
 
 export default function ReportPage({ ticker }: ReportPageProps) {
+  // El estado espera un solo objeto de tipo ApiAssetItem o null
   const [assetData, setAssetData] = useState<ApiAssetItem | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +27,10 @@ export default function ReportPage({ ticker }: ReportPageProps) {
     setLoading(true);
     setError(null);
     try {
-      const apiUrl = `${window.location.origin}/api/stocks?tickers=${ticker}`;
+      // --- CORRECCIÓN DEL ENDPOINT API ---
+      // La ruta API es `/api/[ticker]`, no `/api/stocks?tickers=`.
+      // Se construye la URL correctamente.
+      const apiUrl = `${window.location.origin}/api/${ticker}`;
       const response = await fetch(apiUrl);
       if (!response.ok) {
         throw new Error(`Fallo al obtener los datos de ${ticker}.`);
@@ -41,8 +43,9 @@ export default function ReportPage({ ticker }: ReportPageProps) {
         return;
       }
 
-      if (apiResponse.data && apiResponse.data.length > 0) {
-        setAssetData(apiResponse.data[0]);
+      // La API devuelve `assetData: [formattedData]`, por lo que necesitamos acceder al primer elemento
+      if (apiResponse.assetData && apiResponse.assetData.length > 0) {
+        setAssetData(apiResponse.assetData[0]); // Aquí se espera un `ApiAssetItem`
       } else {
         setError(`No se encontraron datos para ${ticker}.`);
       }
@@ -104,6 +107,8 @@ export default function ReportPage({ ticker }: ReportPageProps) {
         <Profitability assetData={assetData} />
         <AnalystPerspectives assetData={assetData} />
         <Conclusion assetData={assetData} />
+        {/* Aquí se pasa el objeto único assetData a StocksDisplay */}
+        
 
         <footer className="text-center mt-12 pt-8 border-t border-gray-200">
           <h3 className="font-bold mb-2 text-[#0A2342]">Aviso Legal</h3>
