@@ -1,10 +1,26 @@
 // components/Shared/utils.ts
 
+import { YahooFinanceRawValue } from "@/types/api";
+
 export const formatCurrency = (
-  value: number | null | undefined,
+  value: number | YahooFinanceRawValue | null | undefined,
   currencySymbol: string = "€"
 ) => {
   if (value === null || value === undefined) return "";
+  if (typeof value === "object" && value !== null) {
+    if (value.raw !== undefined) {
+      return `${currencySymbol}${value.raw.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    // Si no hay raw, intenta usar fmt (si existe)
+    if (value.fmt) {
+      return `${currencySymbol}${value.fmt}`;
+    }
+    return "";
+  }
+
   return `${currencySymbol}${value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

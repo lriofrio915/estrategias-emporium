@@ -9,7 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { ApiAssetItem } from "@/types/api";
+import { ApiAssetItem, YahooFinanceRawValue } from "@/types/api";
 
 // ===================================
 // INTERFACES Y FUNCIONES AUXILIARES
@@ -23,6 +23,21 @@ interface ChartData {
 interface NetIncomeChartProps {
   assetData: ApiAssetItem;
 }
+
+// Función type-safe para extraer valores numéricos
+const getNumericValue = (
+  value: number | YahooFinanceRawValue | null | undefined
+): number | null => {
+  if (value === null || value === undefined) return null;
+
+  if (typeof value === "number") return value;
+
+  if (typeof value === "object" && "raw" in value) {
+    return value.raw ?? null;
+  }
+
+  return null;
+};
 
 // Función auxiliar para formatear valores del eje Y
 const formatYAxisTick = (value: number) => {
@@ -63,9 +78,9 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
     ? financialHistory
         .map((item) => {
           const year = item.endDate
-            ? new Date(item.endDate as string).getFullYear().toString()
+            ? new Date(item.endDate.raw * 1000).getFullYear().toString()
             : "N/A";
-          const netIncomeValue = item.netIncome ?? null;
+          const netIncomeValue = getNumericValue(item.netIncome);
 
           return {
             year,
@@ -114,7 +129,7 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
                   position: "outside",
                   // Mover la etiqueta más a la izquierda
                   dx: -70, // <-- CAMBIO AQUÍ
-                  style: { textAnchor: 'middle' }
+                  style: { textAnchor: "middle" },
                 }}
                 tickFormatter={formatYAxisTick}
               />

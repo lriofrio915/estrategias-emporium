@@ -5,45 +5,19 @@ import {
   FinancialHistoryItem,
   YahooFinanceRawValue,
   YahooFinanceDateValue,
+  QuoteSummaryResult, // Importamos la interfaz QuoteSummaryResult
+  RawYahooFinanceCashflowItem, // Importamos la interfaz para los items de cashflow raw
+  RawYahooFinanceBalanceSheetItem, // Importamos la interfaz para los items de balance sheet raw
+  // Ya no necesitamos importar PriceData, SummaryDetailData, etc., porque QuoteSummaryResult
+  // ya las engloba y las interfaces específicas están en types/api.ts
 } from "@/types/api";
 
-// Definiciones más específicas para los módulos que pueden ser retornados por quoteSummary
-interface PriceData {
-  [key: string]: unknown;
-}
-interface SummaryDetailData {
-  [key: string]: unknown;
-}
-interface AssetProfileData {
-  [key: string]: unknown;
-}
-interface DefaultKeyStatisticsData {
-  [key: string]: unknown;
-}
-interface FinancialDataModule {
-  [key: string]: unknown;
-}
-
-interface QuoteSummary {
-  cashflowStatementHistory?: {
-    cashflowStatements: any[];
-  };
-  balanceSheetHistory?: {
-    balanceSheetStatements: any[];
-  };
-  incomeStatementHistory?: {
-    incomeStatementHistory: any[];
-  };
-  price?: PriceData;
-  summaryDetail?: SummaryDetailData;
-  assetProfile?: AssetProfileData;
-  defaultKeyStatistics?: DefaultKeyStatisticsData;
-  financialData?: FinancialDataModule;
-  [key: string]: unknown;
-}
+// Las interfaces duplicadas y obsoletas (PriceData, SummaryDetailData, AssetProfileData,
+// DefaultKeyStatisticsData, FinancialDataModule, QuoteSummary) han sido eliminadas
+// ya que QuoteSummaryResult en types/api.ts provee la tipificación correcta y completa.
 
 // Función helper para extraer el valor numérico (ahora regresa `null` si no hay valor)
-function getRawValue(value: YahooFinanceRawValue | undefined): number | null {
+function getRawValue(value: YahooFinanceRawValue | number | undefined): number | null {
   if (typeof value === "number") {
     return value;
   }
@@ -65,6 +39,7 @@ function getYearFromDate(
       return date.fmt.substring(0, 4);
     }
     if (date.raw) {
+      // Yahoo Finance a veces devuelve timestamps en segundos, Date espera milisegundos
       const dateObj = new Date(date.raw * 1000);
       return dateObj.getFullYear().toString();
     }
@@ -74,16 +49,17 @@ function getYearFromDate(
 
 // Nueva función para procesar el historial financiero, más robusta
 function processFinancialHistory(
-  quoteSummary: QuoteSummary
+  quoteSummary: QuoteSummaryResult // CAMBIO CLAVE: Usamos la interfaz QuoteSummaryResult
 ): FinancialHistoryItem[] {
   try {
     const financialHistory: FinancialHistoryItem[] = [];
 
     // Verificamos si las propiedades anidadas existen para evitar errores
     // y asignar arrays vacíos si no están presentes.
-    const cashflowStatements =
+    // Tipificamos explícitamente los arrays con las interfaces RawYahooFinance*Item
+    const cashflowStatements: RawYahooFinanceCashflowItem[] =
       quoteSummary.cashflowStatementHistory?.cashflowStatements || [];
-    const balanceStatements =
+    const balanceStatements: RawYahooFinanceBalanceSheetItem[] =
       quoteSummary.balanceSheetHistory?.balanceSheetStatements || [];
 
     const yearsData: Record<string, Partial<FinancialHistoryItem>> = {};
@@ -99,19 +75,21 @@ function processFinancialHistory(
     );
 
     cashflowStatements.forEach((statement) => {
+      // 'statement' ahora es de tipo RawYahooFinanceCashflowItem
       const year = getYearFromDate(statement.endDate);
       if (year) {
         yearsData[year] = {
           ...yearsData[year],
           year,
-          freeCashFlow: getRawValue(statement.freeCashflow),
-          operatingCashFlow: getRawValue(statement.operatingCashflow),
+          freeCashFlow: getRawValue(statement.freeCashFlow),
+          operatingCashFlow: getRawValue(statement.operatingCashFlow),
           capitalExpenditures: getRawValue(statement.capitalExpenditures),
         };
       }
     });
 
     balanceStatements.forEach((balance) => {
+      // 'balance' ahora es de tipo RawYahooFinanceBalanceSheetItem
       const year = getYearFromDate(balance.endDate);
       if (year) {
         yearsData[year] = {
@@ -119,7 +97,8 @@ function processFinancialHistory(
           year,
           totalDebt: getRawValue(balance.totalDebt),
           totalEquity: getRawValue(
-            balance.totalStockholderEquity || balance.totalEquity
+            // Asumiendo que 'totalEquity' también puede venir de balance.totalStockholderEquity
+            balance.totalStockholderEquity || balance.totalEquity // Ya no se necesita 'as any'
           ),
         };
       }
@@ -129,12 +108,16 @@ function processFinancialHistory(
 
     for (const year in yearsData) {
       const data = yearsData[year];
+      // Aseguramos que 'year' existe antes de usarlo
+      if (!data.year) {
+        continue;
+      }
       const totalDebt = data.totalDebt ?? 0;
       const totalEquity = data.totalEquity ?? 0;
       const debtToEquity = totalEquity > 0 ? totalDebt / totalEquity : null;
 
       financialHistory.push({
-        year: data.year!,
+        year: data.year, // Eliminamos '!' ya que hemos comprobado su existencia
         freeCashFlow: data.freeCashFlow ?? null,
         totalDebt: data.totalDebt ?? null,
         totalEquity: data.totalEquity ?? null,
@@ -151,7 +134,8 @@ function processFinancialHistory(
     );
 
     return financialHistory.sort(
-      (a, b) => parseInt(a.year!) - parseInt(b.year!)
+      // Eliminamos '!' ya que hemos comprobado su existencia o es garantizado por el tipo FinancialHistoryItem
+      (a, b) => parseInt(a.year) - parseInt(b.year)
     );
   } catch (error) {
     console.error("LOG: Error processing financial history:", error);
@@ -188,12 +172,12 @@ export async function GET(request: Request) {
             "cashflowStatementHistory",
             "balanceSheetHistory",
             "incomeStatementHistory",
+            // Agregué incomeStatementHistory aquí, ya que estaba en la interfaz QuoteSummary original
+            // y es buena práctica incluirlo si lo definiste en types/api.ts.
           ],
-        });
+        }) as QuoteSummaryResult;
 
-        const financialHistory = processFinancialHistory(
-          quoteSummary as QuoteSummary
-        );
+        const financialHistory = processFinancialHistory(quoteSummary);
 
         const today = new Date();
         const fiveYearsAgo = new Date();
@@ -220,6 +204,7 @@ export async function GET(request: Request) {
       } catch (error) {
         console.error(`LOG: Full error for ${ticker}:`, error);
 
+        // Bloque de fallback en caso de que la primera llamada falle
         try {
           const quoteSummary = await yahooFinance.quoteSummary(ticker, {
             modules: [
@@ -229,7 +214,7 @@ export async function GET(request: Request) {
               "defaultKeyStatistics",
               "financialData",
             ],
-          });
+          }) as QuoteSummaryResult; 
 
           return {
             ticker: ticker,
@@ -244,9 +229,15 @@ export async function GET(request: Request) {
           return {
             ticker: ticker,
             data: {
+              // Devolvemos objetos vacíos o nulos para asegurar consistencia
+              price: {}, // Objeto PriceData vacío
+              summaryDetail: {}, // Puedes tipificar esto más si es necesario
+              assetProfile: {}, // Objeto AssetProfileData vacío
+              defaultKeyStatistics: {}, // Objeto KeyStatisticsData vacío
+              financialData: {}, // Objeto FinancialData vacío
               historical: [],
               financialHistory: [],
-            },
+            } as QuoteSummaryResult, // Aseguramos que el tipo sea QuoteSummaryResult
           };
         }
       }

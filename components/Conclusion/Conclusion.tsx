@@ -1,6 +1,7 @@
 // components/Conclusion/Conclusion.tsx
 import { ApiAssetItem } from "@/types/api";
 import { formatCurrency, formatPercentage } from "../Shared/utils";
+import { getNumericValue } from "../AnalystPerspectives/AnalystPerspectives";
 
 interface ConclusionProps {
   assetData: ApiAssetItem;
@@ -14,6 +15,14 @@ export default function Conclusion({ assetData }: ConclusionProps) {
   const companyName = price?.longName || assetData.ticker;
   const currencySymbol = price?.currencySymbol || "€";
 
+  // Precalculamos todos los valores numéricos necesarios
+  const marketCapNumeric = getNumericValue(price?.marketCap);
+  const payoutRatioNumeric = getNumericValue(summaryDetail?.payoutRatio);
+  const earningsGrowthNumeric = getNumericValue(
+    defaultKeyStatistics?.earningsQuarterlyGrowth
+  );
+  const dividendYieldNumeric = getNumericValue(summaryDetail?.dividendYield);
+
   return (
     <section className="bg-white rounded-lg shadow-xl p-6 md:p-8 mb-12">
       <h2 className="text-3xl font-bold text-center text-[#0A2342] mb-8">
@@ -24,7 +33,7 @@ export default function Conclusion({ assetData }: ConclusionProps) {
         fuerte presencia en diversos segmentos. Su capitalización de mercado de
         aproximadamente{" "}
         <span className="highlight-api">
-          {formatCurrency(price?.marketCap, currencySymbol)}
+          {formatCurrency(marketCapNumeric, currencySymbol)}
         </span>{" "}
         y su diversificada cartera de productos sugieren una empresa con una
         base sólida.
@@ -36,22 +45,22 @@ export default function Conclusion({ assetData }: ConclusionProps) {
           {financialData?.recommendationKey?.toUpperCase() || ""}
         </span>{" "}
         sugiere una perspectiva generalmente positiva. Sin embargo, el{" "}
-        {summaryDetail?.payoutRatio !== undefined && (
+        {payoutRatioNumeric !== 0 && (
           <span>
             <span className="font-semibold">Payout Ratio</span> de{" "}
             <span className="highlight-api">
-              {formatPercentage(summaryDetail?.payoutRatio)}
+              {formatPercentage(payoutRatioNumeric)}
             </span>
           </span>
         )}{" "}
-        y el{" "}
-        {defaultKeyStatistics?.earningsQuarterlyGrowth !== undefined && (
+        {payoutRatioNumeric !== 0 && earningsGrowthNumeric !== 0 && "y el "}
+        {earningsGrowthNumeric !== 0 && (
           <span>
             <span className="font-semibold">
               Crecimiento de Ganancias Trimestrales:
             </span>{" "}
             <span className="highlight-api">
-              {formatPercentage(defaultKeyStatistics?.earningsQuarterlyGrowth)}
+              {formatPercentage(earningsGrowthNumeric)}
             </span>
           </span>
         )}{" "}
@@ -59,9 +68,9 @@ export default function Conclusion({ assetData }: ConclusionProps) {
       </p>
       <p className="text-gray-700 leading-relaxed">
         Considerando su posición en el mercado, el rendimiento de dividendos de{" "}
-        {summaryDetail?.dividendYield !== undefined && (
+        {dividendYieldNumeric !== 0 && (
           <span className="highlight-api">
-            {formatPercentage(summaryDetail?.dividendYield)}
+            {formatPercentage(dividendYieldNumeric)}
           </span>
         )}{" "}
         y los ratios de valoración, {companyName} podría representar una

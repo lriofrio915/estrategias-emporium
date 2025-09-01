@@ -1,6 +1,8 @@
 // components/Profitability/Profitability.tsx
 import { ApiAssetItem } from "@/types/api";
 import DataListItem from "../Shared/DataListItem";
+import { getNumericValue } from "../AnalystPerspectives/AnalystPerspectives";
+
 
 interface ProfitabilityProps {
   assetData: ApiAssetItem;
@@ -11,6 +13,19 @@ export default function Profitability({ assetData }: ProfitabilityProps) {
   // Esto hace que el código sea más seguro y limpio
   const { financialData, defaultKeyStatistics, price } = assetData.data;
   const currencySymbol = price?.currencySymbol || "€";
+  // Preprocesamos los valores necesarios
+  const revenuePerShare = getNumericValue(defaultKeyStatistics?.revenuePerShare);
+  const totalRevenue = getNumericValue(financialData?.totalRevenue);
+  const revenueGrowth = getNumericValue(financialData?.revenueGrowth);
+  const grossProfits = getNumericValue(financialData?.grossProfits);
+  const grossMargins = getNumericValue(financialData?.grossMargins);
+  const operatingMargins = getNumericValue(financialData?.operatingMargins);
+  const profitMargins = getNumericValue(financialData?.profitMargins);
+  const returnOnAssets = getNumericValue(financialData?.returnOnAssets);
+  const returnOnEquity = getNumericValue(financialData?.returnOnEquity);
+  const trailingEps = getNumericValue(defaultKeyStatistics?.trailingEps);
+  const forwardEps = getNumericValue(defaultKeyStatistics?.forwardEps);
+  const earningsQuarterlyGrowth = getNumericValue(defaultKeyStatistics?.earningsQuarterlyGrowth);
 
   // La lógica de retorno temprano está bien, pero ahora es más precisa
   if (!financialData && !defaultKeyStatistics) {
@@ -30,45 +45,40 @@ export default function Profitability({ assetData }: ProfitabilityProps) {
           <ul className="space-y-2">
             <DataListItem
               label="Ingresos Totales"
-              value={financialData?.totalRevenue}
+              value={totalRevenue}
               format="currency"
               currencySymbol={currencySymbol}
             />
             <DataListItem
               label="Ingresos por Acción"
-              value={financialData?.revenuePerShare}
+              value={revenuePerShare}
               format="currency"
               currencySymbol={currencySymbol}
             />
             <DataListItem
               label="Crecimiento de Ingresos"
-              value={financialData?.revenueGrowth}
+              value={revenueGrowth}
               format="percentage"
             />
             <DataListItem
               label="Beneficios Brutos"
-              value={financialData?.grossProfits}
+              value={grossProfits}
               format="currency"
               currencySymbol={currencySymbol}
             />
             <DataListItem
               label="Márgenes Brutos"
-              value={financialData?.grossMargins}
-              format="percentage"
-            />
-            <DataListItem
-              label="Márgenes EBITDA"
-              value={financialData?.ebitdaMargins}
+              value={grossMargins}
               format="percentage"
             />
             <DataListItem
               label="Márgenes Operativos"
-              value={financialData?.operatingMargins}
+              value={operatingMargins}
               format="percentage"
             />
             <DataListItem
               label="Márgenes de Beneficio"
-              value={financialData?.profitMargins}
+              value={profitMargins}
               format="percentage"
             />
           </ul>
@@ -80,27 +90,27 @@ export default function Profitability({ assetData }: ProfitabilityProps) {
           <ul className="space-y-2">
             <DataListItem
               label="EPS (Trailing)"
-              value={defaultKeyStatistics?.trailingEps}
+              value={trailingEps}
               format="number"
             />
             <DataListItem
               label="EPS (Forward)"
-              value={defaultKeyStatistics?.forwardEps}
+              value={forwardEps}
               format="number"
             />
             <DataListItem
               label="Crecimiento de Ganancias Trimestrales"
-              value={defaultKeyStatistics?.earningsQuarterlyGrowth}
+              value={earningsQuarterlyGrowth}
               format="percentage"
             />
             <DataListItem
               label="Retorno sobre Activos (ROA)"
-              value={financialData?.returnOnAssets}
+              value={returnOnAssets}
               format="percentage"
             />
             <DataListItem
               label="Retorno sobre Patrimonio (ROE)"
-              value={financialData?.returnOnEquity}
+              value={returnOnEquity}
               format="percentage"
             />
           </ul>

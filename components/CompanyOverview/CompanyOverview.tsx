@@ -6,6 +6,9 @@ import DataListItem from "../Shared/DataListItem";
 import { translateText } from "@/app/actions/translateActions";
 import NetIncomeChart from "../NetIncomeChart/NetIncomeChart";
 
+// Ver todas las propiedades/métodos exportados
+
+
 interface CompanyOverviewProps {
   assetData: ApiAssetItem;
 }
@@ -16,6 +19,8 @@ export default function CompanyOverview({ assetData }: CompanyOverviewProps) {
   const [translatedSummary, setTranslatedSummary] = useState<string>("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationError, setTranslationError] = useState<string>("");
+
+ 
 
   useEffect(() => {
     const translateBusinessSummary = async () => {
