@@ -1,4 +1,3 @@
-// components/Navbar.tsx
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -155,44 +154,44 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex space-x-6 items-center">
-            {/* Menú de Operativas */}
+            {/* Menú de Track Record */}
             <div className="relative">
               <button
-                onClick={() => toggleDropdown("operativa")}
+                onClick={() => toggleDropdown("trackRecord")}
                 className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
               >
-                Operativas
-                {openDropdown === "operativa" ? (
+                Track Record
+                {openDropdown === "trackRecord" ? (
                   <ChevronUpIcon className="ml-1 h-4 w-4" />
                 ) : (
                   <ChevronDownIcon className="ml-1 h-4 w-4" />
                 )}
               </button>
-              {openDropdown === "operativa" && (
+              {openDropdown === "trackRecord" && (
                 <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                   <Link
-                    href="/operativas/aluisa-diego"
+                    href="/track-record/aluisa-diego"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
                     Aluisa Diego
                   </Link>
                   <Link
-                    href="/operativas/riofrio-luis"
+                    href="/track-record/riofrio-luis"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
                     Riofrío Luis
                   </Link>
                   <Link
-                    href="/operativas/saa-mateo"
+                    href="/track-record/saa-mateo"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
                     Saa Mateo
                   </Link>
                   <Link
-                    href="/operativas/tenesaca-jose"
+                    href="/track-record/tenesaca-jose"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
@@ -315,6 +314,51 @@ export default function Navbar() {
                   <div className="relative group">
                     <button
                       className="flex justify-between items-center px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200 w-full text-left"
+                      onClick={() => toggleSubDropdown("preMercado")}
+                    >
+                      <span>Pre-Mercado</span>
+                      {openSubDropdown === "preMercado" ? (
+                        <ChevronUpIcon className="ml-1 h-4 w-4" />
+                      ) : (
+                        <ChevronDownIcon className="ml-1 h-4 w-4" />
+                      )}
+                    </button>
+                    {openSubDropdown === "preMercado" && (
+                      <div className="absolute left-full top-0 mt-0 ml-1 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-20">
+                        <Link
+                          href="/pre-mercado/new-york"
+                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                          onClick={closeAllMenus}
+                        >
+                          Nueva York
+                        </Link>
+                        <Link
+                          href="/pre-mercado/sidney"
+                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                          onClick={closeAllMenus}
+                        >
+                          Sidney
+                        </Link>
+                        <Link
+                          href="/pre-mercado/asia"
+                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                          onClick={closeAllMenus}
+                        >
+                          Asia
+                        </Link>
+                        <Link
+                          href="/pre-mercado/europa"
+                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                          onClick={closeAllMenus}
+                        >
+                          Europa
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                  <div className="relative group">
+                    <button
+                      className="flex justify-between items-center px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200 w-full text-left"
                       onClick={() => toggleSubDropdown("sesgoDiario")}
                     >
                       <span>Sesgo Diario</span>
@@ -404,31 +448,31 @@ export default function Navbar() {
         >
           <div className="space-y-3 pt-2">
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
-              Operativas:
+              Track Record:
             </span>
             <Link
-              href="/operativas/aluisa-diego"
+              href="/track-record/aluisa-diego"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
               Aluisa Diego
             </Link>
             <Link
-              href="/operativas/riofrio-luis"
+              href="/track-record/riofrio-luis"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
               Riofrío Luis
             </Link>
             <Link
-              href="/operativas/saa-mateo"
+              href="/track-record/saa-mateo"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
               Saa Mateo
             </Link>
             <Link
-              href="/operativas/tenesaca-jose"
+              href="/track-record/tenesaca-jose"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
@@ -502,6 +546,39 @@ export default function Navbar() {
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Herramientas:
             </span>
+            <div className="px-3">
+              <span className="block text-white text-sm font-medium py-1">
+                Pre-Mercado
+              </span>
+              <Link
+                href="/pre-mercado/new-york"
+                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+                onClick={closeAllMenus}
+              >
+                Nueva York
+              </Link>
+              <Link
+                href="/pre-mercado/sidney"
+                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+                onClick={closeAllMenus}
+              >
+                Sidney
+              </Link>
+              <Link
+                href="/pre-mercado/asia"
+                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+                onClick={closeAllMenus}
+              >
+                Asia
+              </Link>
+              <Link
+                href="/pre-mercado/europa"
+                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+                onClick={closeAllMenus}
+              >
+                Europa
+              </Link>
+            </div>
             <Link
               href="/stock-screener"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
