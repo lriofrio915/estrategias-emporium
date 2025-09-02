@@ -253,18 +253,18 @@ const NasdaqSentimentTable: React.FC = () => {
   // Datos de estacionalidad harcodeados
   const seasonalityData = useMemo(
     () => ({
-      Jan: 2,
-      Feb: 3,
-      Mar: 2,
-      Apr: 1,
-      May: 0,
-      Jun: 0,
-      Jul: 3,
-      Aug: -1,
-      Sep: 1,
-      Oct: 2,
-      Nov: 2,
-      Dec: 0,
+      Jan: 2.5,
+      Feb: 0.5,
+      Mar: 0.7,
+      Apr: 1.3,
+      May: 1.3,
+      Jun: 1.1,
+      Jul: 0.9,
+      Aug: 0.3,
+      Sep: -0.9,
+      Oct: 0.7,
+      Nov: 2.1,
+      Dec: 1.5,
     }),
     []
   );

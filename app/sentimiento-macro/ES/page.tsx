@@ -251,18 +251,18 @@ const SP500SentimentTable: React.FC = () => {
   // Datos de estacionalidad hardcodeados para S&P 500
   const seasonalityData = useMemo(
     () => ({
-      Jan: 1,
-      Feb: 2,
-      Mar: 2,
-      Apr: 1,
-      May: -1,
-      Jun: 0,
-      Jul: 2,
-      Aug: -1,
-      Sep: 1,
-      Oct: 2,
-      Nov: 2,
-      Dec: 0,
+      Jan: 1.2,
+      Feb: -0.1,
+      Mar: 0.5,
+      Apr: 1.3,
+      May: 0,
+      Jun: 0.8,
+      Jul: 1.7,
+      Aug: 0.7,
+      Sep: -1.1,
+      Oct: 0.5,
+      Nov: 1,
+      Dec: 1.3,
     }),
     []
   );
