@@ -5,9 +5,7 @@ import { ApiAssetItem } from "@/types/api";
 import DataListItem from "../Shared/DataListItem";
 import { translateText } from "@/app/actions/translateActions";
 import NetIncomeChart from "../NetIncomeChart/NetIncomeChart";
-
-// Ver todas las propiedades/métodos exportados
-
+import FreeCashFlowChart from "../FreeCashFlowChart/FreeCashFlowChart";
 
 interface CompanyOverviewProps {
   assetData: ApiAssetItem;
@@ -141,10 +139,9 @@ export default function CompanyOverview({ assetData }: CompanyOverviewProps) {
             )}
           </ul>
         </div>
-
-        {/* Sección de logo de Emporium */}
-        <div className="flex items-center justify-center p-6 bg-gray-50 rounded-lg">
+        <div>
           <NetIncomeChart assetData={assetData} />
+          <FreeCashFlowChart assetData={assetData} />
         </div>
       </div>
     </section>
