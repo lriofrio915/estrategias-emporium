@@ -316,7 +316,7 @@ export default function InformeJunio25Page() {
           <p className="text-center text-gray-600 mb-8">Las imágenes ilustran todas y cada una de las operaciones ejecutadas durante junio, mostrando la disciplina en la aplicación de nuestra estrategia.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <h3 className="font-bold text-lg mb-2">Lunes 02-06: NASDAQ Futures (NQ) - STOP</h3>
+              <h3 className="font-bold text-lg mb-2">Lunes 02-06: NASDAQ Futures (MNQ) - STOP</h3>
               <Image
                 src="https://i.ibb.co/mFtbR1hP/02.jpg"
                 alt="Captura de pantalla de la operación de NASDAQ del 02 de junio, resultado STOP"
@@ -328,7 +328,7 @@ export default function InformeJunio25Page() {
               <p className="text-sm text-gray-600">Descripción: La continuación del rompimiento no sucede inmediatamente, retrocede hacia el stop.</p>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2">Martes 03-06: NASDAQ Futures (NQ) - TARGET</h3>
+              <h3 className="font-bold text-lg mb-2">Martes 03-06: NASDAQ Futures (MNQ) - TARGET</h3>
               <Image
                 src="https://i.ibb.co/VfV06v5/03.jpg"
                 alt="Captura de pantalla de la operación de NASDAQ del 03 de junio, resultado TARGET"
@@ -339,7 +339,7 @@ export default function InformeJunio25Page() {
               <p className="text-sm text-gray-600">Descripción: El primer target es conseguido exitosamente, el segundo objetivo cierra en breakeven por gestión del stop.</p>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2">Miércoles 04-06: NASDAQ Futures (NQ) - TARGET</h3>
+              <h3 className="font-bold text-lg mb-2">Miércoles 04-06: NASDAQ Futures (MNQ) - TARGET</h3>
               <Image
                 src="https://i.ibb.co/qM559P3Q/04.png"
                 alt="Captura de pantalla de la operación de NASDAQ del 04 de junio, resultado TARGET"
@@ -350,7 +350,7 @@ export default function InformeJunio25Page() {
               <p className="text-sm text-gray-600">Descripción: El primer target es conseguido exitosamente, el segundo objetivo cierra en breakeven por gestión del stop.</p>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2">Lunes 09-06: NASDAQ Futures (NQ) - TARGET</h3>
+              <h3 className="font-bold text-lg mb-2">Lunes 09-06: NASDAQ Futures (MNQ) - TARGET</h3>
               <Image
                 src="https://i.ibb.co/tPTHWG1x/09.png"
                 alt="Captura de pantalla de la operación de NASDAQ del 09 de junio, resultado TARGET"
@@ -361,7 +361,7 @@ export default function InformeJunio25Page() {
               <p className="text-sm text-gray-600">Descripción: El primer target es conseguido exitosamente, el segundo objetivo cierra en relación 1:1 por gestión del stop.</p>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2">Miércoles 11-06: NASDAQ Futures (NQ) - TARGET</h3>
+              <h3 className="font-bold text-lg mb-2">Miércoles 11-06: NASDAQ Futures (MNQ) - TARGET</h3>
               <Image
                 src="https://i.ibb.co/NnFMfcTn/11.png"
                 alt="Captura de pantalla de la operación de NASDAQ del 11 de junio, resultado TARGET"
@@ -372,7 +372,7 @@ export default function InformeJunio25Page() {
               <p className="text-sm text-gray-600">Descripción: El primer target es conseguido exitosamente, el segundo objetivo cierra en breakeven por gestión del stop.</p>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2">Lunes 16-06: NASDAQ Futures (NQ) - TARGET</h3>
+              <h3 className="font-bold text-lg mb-2">Lunes 16-06: NASDAQ Futures (MNQ) - TARGET</h3>
               <Image
                 src="https://i.ibb.co/0pxNRcb3/16.png"
                 alt="Captura de pantalla de la operación de NASDAQ del 16 de junio, resultado TARGET"
@@ -383,7 +383,7 @@ export default function InformeJunio25Page() {
               <p className="text-sm text-gray-600">Descripción: El precio llega exitosamente al primer target pero cierro en breakeven porque en la apertura del trade se dio un deslizamiento y entré en un precio no deseado.</p>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2">Miércoles 18-06: NASDAQ Futures (NQ) - TARGET</h3>
+              <h3 className="font-bold text-lg mb-2">Miércoles 18-06: NASDAQ Futures (MNQ) - TARGET</h3>
               <Image
                 src="https://i.ibb.co/G3d0SmTq/18.png"
                 alt="Captura de pantalla de la operación de NASDAQ del 18 de junio, resultado TARGET"
@@ -394,7 +394,7 @@ export default function InformeJunio25Page() {
               <p className="text-sm text-gray-600">El primer target es conseguido exitosamente, el segundo objetivo cierra en breakeven por gestión del stop.</p>
             </div>
             <div>
-              <h3 className="font-bold text-lg mb-2">Miércoles 25-06: NASDAQ Futures (NQ) - STOP</h3>
+              <h3 className="font-bold text-lg mb-2">Miércoles 25-06: NASDAQ Futures (MNQ) - STOP</h3>
               <Image
                 src="https://i.ibb.co/RkRf7thB/25.png"
                 alt="Captura de pantalla de la operación de NASDAQ del 25 de junio, resultado STOP"

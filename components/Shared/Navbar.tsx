@@ -221,13 +221,6 @@ export default function Navbar() {
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
-                    Estrategia NQ
-                  </Link>
-                  <Link
-                    href="/manuales/Nasdaq-2"
-                    className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                    onClick={closeAllMenus}
-                  >
                     Estrategia MNQ
                   </Link>
                   <Link
@@ -263,13 +256,6 @@ export default function Navbar() {
               </button>
               {openDropdown === "informes" && (
                 <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
-                  <Link
-                    href="/informes/NQ"
-                    className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                    onClick={closeAllMenus}
-                  >
-                    Informes NQ
-                  </Link>
                   <Link
                     href="/informes/MNQ"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
@@ -487,13 +473,6 @@ export default function Navbar() {
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
-              Estrategia NQ
-            </Link>
-            <Link
-              href="/manuales/Nasdaq-2"
-              className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-              onClick={closeAllMenus}
-            >
               Estrategia MNQ
             </Link>
             <Link
@@ -514,13 +493,6 @@ export default function Navbar() {
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Informes:
             </span>
-            <Link
-              href="/informes/NQ"
-              className="block px-3 py-2 text-white hover:text-gray-300 rounded-md text-base font-medium pl-6"
-              onClick={closeAllMenus}
-            >
-              Informes NQ
-            </Link>
             <Link
               href="/informes/MNQ"
               className="block px-3 py-2 text-white hover:text-gray-300 rounded-md text-base font-medium pl-6"
