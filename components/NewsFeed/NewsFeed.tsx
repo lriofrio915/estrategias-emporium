@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image"; // Importamos el componente Image de Next.js
 
 // Datos de ejemplo para las noticias
 const newsItems = [
@@ -55,9 +56,12 @@ export default function NewsFeed() {
             className="bg-gray-700 rounded-lg overflow-hidden shadow-lg transition-transform transform hover:scale-105"
           >
             <a href={news.url} target="_blank" rel="noopener noreferrer">
-              <img
+              {/* Se reemplazó la etiqueta <img> con el componente Image de Next.js */}
+              <Image
                 src={news.image}
                 alt={news.title}
+                width={400} // Se especifican el ancho y alto para la optimización
+                height={200}
                 className="w-full h-48 object-cover"
               />
               <div className="p-4">

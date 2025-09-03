@@ -369,12 +369,12 @@ export default function InformeAgosto25MQNPage() {
           </h2>
           <blockquote className="relative p-4 text-xl italic border-l-4 bg-neutral-100 text-neutral-600 border-neutral-500 quote">
             <p className="mb-4">
-              "En el trading, los meses de **drawdown son pruebas de carácter y
-              paciencia**. La clave no es evitar las rachas negativas, sino
+              &quot;En el trading, los meses de <b>drawdown son pruebas de carácter y
+              paciencia</b>. La clave no es evitar las rachas negativas, sino
               aceptarlas como parte de la estrategia. Mantener la disciplina, la
               calma y la confianza en tu plan a largo plazo es lo que te
               permitirá superar los períodos difíciles y capitalizar cuando el
-              mercado te dé la oportunidad."
+              mercado te dé la oportunidad.&quot;
             </p>
             <cite className="flex items-center">
               <div className="flex flex-col items-start">
