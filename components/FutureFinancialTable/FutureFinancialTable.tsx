@@ -20,12 +20,31 @@ interface FinancialData {
     cashAndCashEquivalents: number[];
     // Métricas del Cash Flow
     freeCashFlow: number[];
+    // Métricas de Valoración (nuevas)
+    enterpriseValue?: (number | string)[];
+  };
+}
+
+// Define la interfaz para los datos de valoración
+interface ValuationData {
+  headers: string[];
+  metrics: {
+    marketCap: number[];
+    enterpriseValue: number[];
+    trailingPE: number[];
+    forwardPE: number[];
+    pegRatio: number[];
+    priceSales: number[];
+    priceBook: number[];
+    enterpriseValueRevenue: number[];
+    enterpriseValueEBITDA: number[];
   };
 }
 
 // Define la interfaz para los datos de la tabla
 interface TableRow {
   name: string;
+  nameEn: string;
   values: (number | string)[];
 }
 
@@ -35,6 +54,12 @@ interface FutureFinancialTableProps {
 
 const formatNumber = (num: number) => {
   if (num === 0) return "0";
+
+  // Si el número es mayor o igual a 1 billón, formatear con "T"
+  if (num >= 1e12) {
+    return (num / 1e12).toFixed(2) + "T";
+  }
+
   return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
@@ -60,6 +85,96 @@ const calculateTaxRate = (
   return taxRates;
 };
 
+// Función para ajustar los datos de Enterprise Value a las fechas de la tabla principal
+const adjustEnterpriseValueToMainDates = (
+  valuationData: ValuationData,
+  mainHeaders: string[]
+): (number | string)[] => {
+  const adjustedValues: (number | string)[] = [];
+
+  // Para cada fecha en los headers principales
+  mainHeaders.forEach((mainHeader) => {
+    // Buscamos el índice en los headers de valoración que coincida exactamente con la fecha principal
+    const valuationIndex = valuationData.headers.findIndex(
+      (valuationHeader) => valuationHeader === mainHeader
+    );
+
+    if (valuationIndex !== -1) {
+      // Si encontramos una coincidencia exacta, usamos ese valor
+      adjustedValues.push(
+        valuationData.metrics.enterpriseValue[valuationIndex]
+      );
+    } else {
+      // Si no encontramos coincidencia exacta, buscamos el valor "Current"
+      const currentIndex = valuationData.headers.findIndex((header) =>
+        header.toLowerCase().includes("current")
+      );
+
+      // Si la fecha principal es "Current" o "TTM", usar el valor "Current"
+      if (
+        mainHeader.toLowerCase().includes("current") ||
+        mainHeader.toLowerCase().includes("ttm")
+      ) {
+        if (currentIndex !== -1) {
+          adjustedValues.push(
+            valuationData.metrics.enterpriseValue[currentIndex]
+          );
+        } else {
+          adjustedValues.push("N/A");
+        }
+      } else {
+        // Para otras fechas sin coincidencia exacta, usar "N/A"
+        adjustedValues.push("N/A");
+      }
+    }
+  });
+
+  return adjustedValues;
+};
+
+// Función para filtrar datos del año 2021
+const filterOut2021Data = (
+  data: FinancialData | null
+): FinancialData | null => {
+  if (!data) return null;
+
+  const headers = data.headers;
+  const indicesToRemove: number[] = [];
+
+  // Encontrar índices de las columnas que contienen "2021"
+  headers.forEach((header, index) => {
+    if (header.includes("2021")) {
+      indicesToRemove.push(index);
+    }
+  });
+
+  // Si no hay datos de 2021, retornar los datos originales
+  if (indicesToRemove.length === 0) return data;
+
+  // Filtrar headers
+  const filteredHeaders = headers.filter(
+    (_, index) => !indicesToRemove.includes(index)
+  );
+
+  // Filtrar todas las métricas
+  const filteredMetrics: FinancialData["metrics"] =
+    {} as FinancialData["metrics"];
+
+  Object.entries(data.metrics).forEach(([key, valueArray]) => {
+    if (Array.isArray(valueArray)) {
+      filteredMetrics[key as keyof FinancialData["metrics"]] =
+        valueArray.filter(
+          (_, index) => !indicesToRemove.includes(index)
+        ) as any;
+    }
+  });
+
+  return {
+    headers: filteredHeaders,
+    metrics: filteredMetrics,
+  };
+};
+
 export default function FutureFinancialTable({
   ticker,
 }: FutureFinancialTableProps) {
@@ -72,12 +187,17 @@ export default function FutureFinancialTable({
     setError(null);
     try {
       // Realiza llamadas a todas las APIs en paralelo
-      const [incomeResponse, balanceResponse, cashFlowResponse] =
-        await Promise.all([
-          fetch(`/api/income-statement?ticker=${currentTicker}`),
-          fetch(`/api/balance-sheet?ticker=${currentTicker}`),
-          fetch(`/api/free-cash-flow?ticker=${currentTicker}`),
-        ]);
+      const [
+        incomeResponse,
+        balanceResponse,
+        cashFlowResponse,
+        valuationResponse,
+      ] = await Promise.all([
+        fetch(`/api/income-statement?ticker=${currentTicker}`),
+        fetch(`/api/balance-sheet?ticker=${currentTicker}`),
+        fetch(`/api/free-cash-flow?ticker=${currentTicker}`),
+        fetch(`/api/key-statistics?ticker=${currentTicker}`),
+      ]);
 
       if (!incomeResponse.ok) {
         throw new Error("No se pudo obtener datos del Income Statement.");
@@ -88,10 +208,19 @@ export default function FutureFinancialTable({
       if (!cashFlowResponse.ok) {
         throw new Error("No se pudo obtener datos del Cash Flow.");
       }
+      if (!valuationResponse.ok) {
+        console.warn(
+          "No se pudieron obtener datos de Valoración, pero continuamos sin ellos."
+        );
+        // No lanzamos error para valuation, ya que es opcional
+      }
 
       const incomeData = await incomeResponse.json();
       const balanceData = await balanceResponse.json();
       const cashFlowData = await cashFlowResponse.json();
+      const valuationData = valuationResponse.ok
+        ? await valuationResponse.json()
+        : null;
 
       if (incomeData.error || balanceData.error || cashFlowData.error) {
         throw new Error(
@@ -99,9 +228,9 @@ export default function FutureFinancialTable({
         );
       }
 
-      // Combina los datos de las tres APIs
+      // Combina los datos de las tres APIs principales
       const combinedData: FinancialData = {
-        headers: incomeData.headers, // Se asume que los encabezados son los mismos
+        headers: incomeData.headers,
         metrics: {
           ...incomeData.metrics,
           ...balanceData.metrics,
@@ -109,7 +238,18 @@ export default function FutureFinancialTable({
         },
       };
 
-      setData(combinedData);
+      // Si tenemos datos de valoración, los ajustamos a las fechas principales
+      if (valuationData && !valuationData.error) {
+        const adjustedEnterpriseValue = adjustEnterpriseValueToMainDates(
+          valuationData,
+          incomeData.headers
+        );
+        combinedData.metrics.enterpriseValue = adjustedEnterpriseValue;
+      }
+
+      // Filtrar datos del 2021 antes de establecer el estado
+      const filteredData = filterOut2021Data(combinedData);
+      setData(filteredData);
     } catch (err: unknown) {
       if (err instanceof Error) {
         setError(err.message);
@@ -133,38 +273,53 @@ export default function FutureFinancialTable({
   const tableRows: TableRow[] = data
     ? [
         {
-          name: "Número de acciones en circulación",
+          name: "Acciones en circulación",
+          nameEn: "Shares Outstanding",
           values:
             data.metrics.ordinarySharesNumber ||
             data.metrics.basicAverageShares ||
             [],
         },
         {
-          name: "Ventas (Revenue)",
+          name: "Valor de la Empresa (EV)",
+          nameEn: "Enterprise Value",
+          values:
+            data.metrics.enterpriseValue ||
+            Array(data.headers.length).fill("N/A"),
+        },
+        {
+          name: "Ventas",
+          nameEn: "Revenue",
           values: data.metrics.totalRevenue || [],
         },
         {
           name: "EBIT",
+          nameEn: "EBIT",
           values: data.metrics.ebit || [],
         },
         {
           name: "EBITDA",
+          nameEn: "EBITDA",
           values: data.metrics.ebitda || [],
         },
         {
-          name: "Free Cash Flow (FCF)",
+          name: "Flujo de Caja Libre (FCF)",
+          nameEn: "Free Cash Flow",
           values: data.metrics.freeCashFlow || [],
         },
         {
           name: "Deuda Total",
+          nameEn: "Total Debt",
           values: data.metrics.totalDebt || [],
         },
         {
           name: "Efectivo y equivalentes",
+          nameEn: "Cash & Equivalents",
           values: data.metrics.cashAndCashEquivalents || [],
         },
         {
           name: "Tasa de impuestos (%)",
+          nameEn: "Tax Rate (%)",
           values: calculateTaxRate(
             data.metrics.taxRateForCalcs || [],
             data.metrics.pretaxIncome || []
@@ -204,7 +359,7 @@ export default function FutureFinancialTable({
             <thead className="bg-gray-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                  Métrica
+                  Métrica / Metric
                 </th>
                 {data.headers.map((header, index) => (
                   <th
@@ -224,7 +379,8 @@ export default function FutureFinancialTable({
                   className="hover:bg-gray-700 transition-colors duration-200"
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-200">
-                    {row.name}
+                    <div>{row.name}</div>
+                    <div className="text-xs text-gray-400">{row.nameEn}</div>
                   </td>
                   {row.values.map((value, colIndex) => (
                     <td
