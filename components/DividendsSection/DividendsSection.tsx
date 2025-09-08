@@ -7,8 +7,6 @@ interface DividendsSectionProps {
 }
 
 export default function DividendsSection({ assetData }: DividendsSectionProps) {
-  // Desestructuramos los datos directamente sin 'as any'
-  // Esto asegura que TypeScript verifique las propiedades
   const { summaryDetail, defaultKeyStatistics, price } = assetData.data;
   const currencySymbol = price?.currencySymbol || "€";
 
@@ -51,7 +49,7 @@ export default function DividendsSection({ assetData }: DividendsSectionProps) {
             />
             <DataListItem
               label="Último Valor de Dividendo"
-              value={defaultKeyStatistics?.lastDividendValue}
+              value={summaryDetail?.lastDividendValue} // Cambiado a summaryDetail
               format="currency"
               currencySymbol={currencySymbol}
             />
@@ -64,15 +62,12 @@ export default function DividendsSection({ assetData }: DividendsSectionProps) {
           <ul className="space-y-2">
             <DataListItem
               label="Beta"
-              // `beta` está en `summaryDetail` o `defaultKeyStatistics`.
-              // Ambas opciones son válidas, pero usaremos `summaryDetail` para consistencia.
               value={summaryDetail?.beta}
               format="number"
             />
             <DataListItem
               label="Cambio vs. S&P 500 (52 Semanas)"
-              // Aquí la propiedad tiene un nombre peculiar: "52WeekChange"
-              value={defaultKeyStatistics?.["52WeekChange"]}
+              value={defaultKeyStatistics?.fiftyTwoWeekChange} // Nombre válido
               format="percentage"
             />
           </ul>

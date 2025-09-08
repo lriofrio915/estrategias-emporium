@@ -1,35 +1,42 @@
-// app/api/stocks/route.ts
 import { NextResponse } from "next/server";
 import yahooFinance from "yahoo-finance2";
 import {
   FinancialHistoryItem,
   YahooFinanceRawValue,
   YahooFinanceDateValue,
-  QuoteSummaryResult, // Importamos la interfaz QuoteSummaryResult
-  RawYahooFinanceCashflowItem, // Importamos la interfaz para los items de cashflow raw
-  RawYahooFinanceBalanceSheetItem, // Importamos la interfaz para los items de balance sheet raw
-  // Ya no necesitamos importar PriceData, SummaryDetailData, etc., porque QuoteSummaryResult
-  // ya las engloba y las interfaces específicas están en types/api.ts
+  RawYahooFinanceBalanceSheetItem,
+  RawYahooFinanceCashflowItem,
+  QuoteSummaryResult,
+  HistoricalData,
 } from "@/types/api";
 
-// Las interfaces duplicadas y obsoletas (PriceData, SummaryDetailData, AssetProfileData,
-// DefaultKeyStatisticsData, FinancialDataModule, QuoteSummary) han sido eliminadas
-// ya que QuoteSummaryResult en types/api.ts provee la tipificación correcta y completa.
+// He definido un tipo para los módulos para asegurar la compatibilidad con yahoo-finance2
+type QuoteSummaryModule =
+  | "price"
+  | "summaryDetail"
+  | "assetProfile"
+  | "defaultKeyStatistics"
+  | "financialData"
+  | "cashflowStatementHistory"
+  | "balanceSheetHistory"
+  | "incomeStatementHistory";
 
-// Función helper para extraer el valor numérico (ahora regresa `null` si no hay valor)
-function getRawValue(value: YahooFinanceRawValue | number | undefined): number | null {
+// FUNCIÓN GETRAWVALUE - MANTENER ESTA IMPLEMENTACIÓN
+function getRawValue(
+  value: YahooFinanceRawValue | number | undefined
+): number | null {
   if (typeof value === "number") {
     return value;
   }
   if (value && typeof value === "object" && "raw" in value) {
-    return value.raw || null;
+    return value.raw ?? null;
   }
   return null;
 }
 
-// Función helper para extraer el año de endDate (ahora regresa `null` si no hay año)
+// FUNCIÓN GETYEARFROMDATE - MANTENER ESTA IMPLEMENTACIÓN
 function getYearFromDate(
-  date: YahooFinanceDateValue | undefined
+  date: YahooFinanceDateValue | Date | undefined
 ): string | null {
   if (date instanceof Date) {
     return date.getFullYear().toString();
@@ -39,7 +46,6 @@ function getYearFromDate(
       return date.fmt.substring(0, 4);
     }
     if (date.raw) {
-      // Yahoo Finance a veces devuelve timestamps en segundos, Date espera milisegundos
       const dateObj = new Date(date.raw * 1000);
       return dateObj.getFullYear().toString();
     }
@@ -47,49 +53,37 @@ function getYearFromDate(
   return null;
 }
 
-// Nueva función para procesar el historial financiero, más robusta
+// FUNCIÓN PROCESSFINANCIALHISTORY
 function processFinancialHistory(
-  quoteSummary: QuoteSummaryResult // CAMBIO CLAVE: Usamos la interfaz QuoteSummaryResult
+  quoteSummary: QuoteSummaryResult
 ): FinancialHistoryItem[] {
   try {
     const financialHistory: FinancialHistoryItem[] = [];
 
-    // Verificamos si las propiedades anidadas existen para evitar errores
-    // y asignar arrays vacíos si no están presentes.
-    // Tipificamos explícitamente los arrays con las interfaces RawYahooFinance*Item
-    const cashflowStatements: RawYahooFinanceCashflowItem[] =
-      quoteSummary.cashflowStatementHistory?.cashflowStatements || [];
-    const balanceStatements: RawYahooFinanceBalanceSheetItem[] =
-      quoteSummary.balanceSheetHistory?.balanceSheetStatements || [];
+    const cashflowStatements =
+      (quoteSummary.cashflowStatementHistory
+        ?.cashflowStatements as RawYahooFinanceCashflowItem[]) || [];
+
+    const balanceStatements =
+      (quoteSummary.balanceSheetHistory
+        ?.balanceSheetStatements as RawYahooFinanceBalanceSheetItem[]) || [];
 
     const yearsData: Record<string, Partial<FinancialHistoryItem>> = {};
 
-    console.log("LOG: Procesando historial financiero...");
-    console.log(
-      "LOG: Number of cashflow statements:",
-      cashflowStatements.length
-    );
-    console.log(
-      "LOG: Number of balance sheet statements:",
-      balanceStatements.length
-    );
-
-    cashflowStatements.forEach((statement) => {
-      // 'statement' ahora es de tipo RawYahooFinanceCashflowItem
+    cashflowStatements.forEach((statement: RawYahooFinanceCashflowItem) => {
       const year = getYearFromDate(statement.endDate);
       if (year) {
         yearsData[year] = {
           ...yearsData[year],
           year,
-          freeCashFlow: getRawValue(statement.freeCashFlow),
-          operatingCashFlow: getRawValue(statement.operatingCashFlow),
+          freeCashFlow: getRawValue(statement.freeCashflow),
+          operatingCashFlow: getRawValue(statement.operatingCashflow),
           capitalExpenditures: getRawValue(statement.capitalExpenditures),
         };
       }
     });
 
-    balanceStatements.forEach((balance) => {
-      // 'balance' ahora es de tipo RawYahooFinanceBalanceSheetItem
+    balanceStatements.forEach((balance: RawYahooFinanceBalanceSheetItem) => {
       const year = getYearFromDate(balance.endDate);
       if (year) {
         yearsData[year] = {
@@ -97,27 +91,20 @@ function processFinancialHistory(
           year,
           totalDebt: getRawValue(balance.totalDebt),
           totalEquity: getRawValue(
-            // Asumiendo que 'totalEquity' también puede venir de balance.totalStockholderEquity
-            balance.totalStockholderEquity || balance.totalEquity // Ya no se necesita 'as any'
+            balance.totalStockholderEquity || balance.totalEquity
           ),
         };
       }
     });
 
-    console.log("LOG: yearsData after processing:", yearsData);
-
     for (const year in yearsData) {
       const data = yearsData[year];
-      // Aseguramos que 'year' existe antes de usarlo
-      if (!data.year) {
-        continue;
-      }
       const totalDebt = data.totalDebt ?? 0;
       const totalEquity = data.totalEquity ?? 0;
       const debtToEquity = totalEquity > 0 ? totalDebt / totalEquity : null;
 
       financialHistory.push({
-        year: data.year, // Eliminamos '!' ya que hemos comprobado su existencia
+        year: data.year!,
         freeCashFlow: data.freeCashFlow ?? null,
         totalDebt: data.totalDebt ?? null,
         totalEquity: data.totalEquity ?? null,
@@ -128,14 +115,8 @@ function processFinancialHistory(
       });
     }
 
-    console.log(
-      "LOG: Final financialHistory before sorting:",
-      financialHistory
-    );
-
     return financialHistory.sort(
-      // Eliminamos '!' ya que hemos comprobado su existencia o es garantizado por el tipo FinancialHistoryItem
-      (a, b) => parseInt(a.year) - parseInt(b.year)
+      (a, b) => parseInt(a.year!) - parseInt(b.year!)
     );
   } catch (error) {
     console.error("LOG: Error processing financial history:", error);
@@ -146,48 +127,83 @@ function processFinancialHistory(
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const tickers = searchParams.getAll("tickers");
+    // Obtiene el string completo de tickers
+    const tickersString = searchParams.get("tickers");
+    const fullData = searchParams.get("fullData") === "true";
 
-    if (tickers.length === 0) {
+    // Si no hay tickers, retorna un error
+    if (!tickersString) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "No se proporcionaron tickers para consultar. Por favor, especifica al menos un ticker en los parámetros de consulta (ej: ?tickers=AAPL&tickers=MSFT).",
+            "No se proporcionaron tickers para consultar. Por favor, especifica al menos un ticker en los parámetros de consulta.",
         },
         { status: 400 }
       );
     }
 
-    const promises = tickers.map(async (ticker) => {
+    // Divide el string en un array de tickers individuales
+    const tickersArray = tickersString
+      .split(",")
+      .filter((t) => t.trim() !== "");
+
+    if (tickersArray.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "No se proporcionaron tickers válidos para consultar.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Se construye un array de promesas, una para cada llamada individual
+    const promises = tickersArray.map(async (ticker) => {
       console.log(`LOG: Attempting to fetch data for ticker: ${ticker}`);
+
+      const baseModules: QuoteSummaryModule[] = ["price", "assetProfile"];
+      const fullModules: QuoteSummaryModule[] = [
+        "price",
+        "assetProfile",
+        "financialData",
+        "summaryDetail",
+        "defaultKeyStatistics",
+        "cashflowStatementHistory",
+        "balanceSheetHistory",
+        "incomeStatementHistory",
+      ];
+
+      const modulesToFetch = fullData ? fullModules : baseModules;
+
+      let financialHistory: FinancialHistoryItem[] = [];
+      let historicalData: HistoricalData[] = [];
+
       try {
+        // Se llama a la API de Yahoo Finance para cada ticker individualmente
         const quoteSummary = await yahooFinance.quoteSummary(ticker, {
-          modules: [
-            "price",
-            "summaryDetail",
-            "assetProfile",
-            "defaultKeyStatistics",
-            "financialData",
-            "cashflowStatementHistory",
-            "balanceSheetHistory",
-            "incomeStatementHistory",
-            // Agregué incomeStatementHistory aquí, ya que estaba en la interfaz QuoteSummary original
-            // y es buena práctica incluirlo si lo definiste en types/api.ts.
-          ],
-        }) as QuoteSummaryResult;
-
-        const financialHistory = processFinancialHistory(quoteSummary);
-
-        const today = new Date();
-        const fiveYearsAgo = new Date();
-        fiveYearsAgo.setFullYear(today.getFullYear() - 5);
-
-        const historicalData = await yahooFinance.historical(ticker, {
-          period1: fiveYearsAgo,
-          period2: today,
-          interval: "1d",
+          modules: modulesToFetch,
         });
+
+        if (fullData) {
+          financialHistory = processFinancialHistory(
+            quoteSummary as QuoteSummaryResult
+          );
+          const today = new Date();
+          const fiveYearsAgo = new Date();
+          fiveYearsAgo.setFullYear(today.getFullYear() - 5);
+
+          const rawHistoricalData = await yahooFinance.historical(ticker, {
+            period1: fiveYearsAgo,
+            period2: today,
+            interval: "1d",
+          });
+
+          historicalData = rawHistoricalData.map((item) => ({
+            ...item,
+            date: item.date.toISOString().split("T")[0],
+          }));
+        }
 
         console.log(
           `LOG: Successful fetch for ${ticker}. Returning formatted data.`
@@ -204,17 +220,10 @@ export async function GET(request: Request) {
       } catch (error) {
         console.error(`LOG: Full error for ${ticker}:`, error);
 
-        // Bloque de fallback en caso de que la primera llamada falle
         try {
           const quoteSummary = await yahooFinance.quoteSummary(ticker, {
-            modules: [
-              "price",
-              "summaryDetail",
-              "assetProfile",
-              "defaultKeyStatistics",
-              "financialData",
-            ],
-          }) as QuoteSummaryResult; 
+            modules: ["price", "assetProfile"],
+          });
 
           return {
             ticker: ticker,
@@ -229,26 +238,15 @@ export async function GET(request: Request) {
           return {
             ticker: ticker,
             data: {
-              // Devolvemos objetos vacíos o nulos para asegurar consistencia
-              price: {}, // Objeto PriceData vacío
-              summaryDetail: {}, // Puedes tipificar esto más si es necesario
-              assetProfile: {}, // Objeto AssetProfileData vacío
-              defaultKeyStatistics: {}, // Objeto KeyStatisticsData vacío
-              financialData: {}, // Objeto FinancialData vacío
               historical: [],
               financialHistory: [],
-            } as QuoteSummaryResult, // Aseguramos que el tipo sea QuoteSummaryResult
+            },
           };
         }
       }
     });
 
     const results = await Promise.all(promises);
-
-    console.log(
-      "LOG: API route is returning this JSON:",
-      JSON.stringify(results, null, 2)
-    );
 
     return NextResponse.json({
       success: true,

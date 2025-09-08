@@ -45,7 +45,7 @@ export default function MarketAnalysis({ assetData }: MarketAnalysisProps) {
             />
             <DataListItem
               label="Última Actualización"
-              value={price?.regularMarketTime}
+              value={price?.regularMarketPrice}
               format="date"
             />
             <DataListItem
