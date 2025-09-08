@@ -9,7 +9,6 @@ interface Props {
 
 interface ValuationData {
   ltm: number;
-  ntm: number;
   target: number;
 }
 
@@ -105,33 +104,21 @@ const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
           EV_FCF: ltmFCF !== 0 ? enterpriseValue / ltmFCF : 0,
         };
 
-        // Para los próximos 12 meses (NTM), solo el P/E está disponible directamente
-        const ntmMetrics = {
-          PER: forwardPE,
-          EV_EBITDA: 0,
-          EV_EBIT: 0,
-          EV_FCF: 0,
-        };
-
         setValuationMetrics({
           PER: {
             ltm: ltmMetrics.PER,
-            ntm: ntmMetrics.PER,
             target: hardcodedTargets.PER,
           },
           EV_EBITDA: {
             ltm: ltmMetrics.EV_EBITDA,
-            ntm: ntmMetrics.EV_EBITDA,
             target: hardcodedTargets.EV_EBITDA,
           },
           EV_EBIT: {
             ltm: ltmMetrics.EV_EBIT,
-            ntm: ntmMetrics.EV_EBIT,
             target: hardcodedTargets.EV_EBIT,
           },
           EV_FCF: {
             ltm: ltmMetrics.EV_FCF,
-            ntm: ntmMetrics.EV_FCF,
             target: hardcodedTargets.EV_FCF,
           },
         });
@@ -187,9 +174,8 @@ const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
         <thead>
           <tr className="border-b border-gray-200 text-gray-500">
             <th className="py-2">Métrica</th>
-            <th className="py-2">LTM</th>
-            <th className="py-2">NTM</th>
-            <th className="py-2">Objetivo</th>
+            <th className="py-2 text-center">LTM</th>
+            <th className="py-2 text-center">Objetivo</th>
           </tr>
         </thead>
         <tbody>
@@ -202,9 +188,8 @@ const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
                   {key.replace("_", " / ")}
                 </Tooltip>
               </td>
-              <td className="py-2">{value.ltm?.toFixed(2) || "-"}</td>
-              <td className="py-2">{value.ntm?.toFixed(2) || "-"}</td>
-              <td className="py-2 text-red-600 font-bold">
+              <td className="py-2 text-center">{value.ltm?.toFixed(2) || "-"}</td>
+              <td className="py-2 text-center text-red-600 font-bold">
                 <input
                   type="number"
                   value={value.target}
