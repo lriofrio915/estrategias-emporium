@@ -12,51 +12,34 @@ import {
 import { ApiAssetItem } from "@/types/api";
 import { getRawValue } from "../Shared/utils";
 
-// ===================================
-// INTERFACES Y FUNCIONES AUXILIARES
-// ===================================
-
 interface ChartData {
   year: string;
-  netIncome: number | null;
+  totalRevenue: number | null;
 }
 
-interface NetIncomeChartProps {
+interface TotalRevenueChartProps {
   assetData: ApiAssetItem;
 }
 
-// Función auxiliar para formatear valores del eje Y
 const formatYAxisTick = (value: number) => {
   if (value === 0) return "$0";
-
   const absValue = Math.abs(value);
-  let formattedValue: string;
-
-  if (absValue >= 1_000_000_000) {
-    formattedValue = `$${(value / 1_000_000_000).toFixed(1)}B`;
-  } else if (absValue >= 1_000_000) {
-    formattedValue = `$${(value / 1_000_000).toFixed(1)}M`;
-  } else if (absValue >= 1_000) {
-    formattedValue = `$${(value / 1_000).toFixed(1)}K`;
-  } else {
-    formattedValue = `$${value.toLocaleString()}`;
-  }
-
-  return formattedValue;
-};
-
-// Función auxiliar para formatear los valores del Tooltip
-const formatTooltipValue = (value: number) => {
-  if (value === null) return "N/A";
+  if (absValue >= 1_000_000_000)
+    return `$${(value / 1_000_000_000).toFixed(1)}B`;
+  if (absValue >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
+  if (absValue >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
   return `$${value.toLocaleString()}`;
 };
 
-// ===================================
-// COMPONENTE PRINCIPAL
-// ===================================
-export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
-  // Obtener dato TTM (Trailing Twelve Months)
-  const ttmNetIncome = assetData.data.defaultKeyStatistics?.netIncomeToCommon;
+const formatTooltipValue = (value: number) => {
+  return value === null ? "N/A" : `$${value.toLocaleString()}`;
+};
+
+export default function TotalRevenueChart({
+  assetData,
+}: TotalRevenueChartProps) {
+  // Obtener dato TTM (Trailing Twelve Months) para Total Revenue
+  const ttmTotalRevenue = assetData.data.financialData?.totalRevenue;
   const financialHistory =
     assetData.data.incomeStatementHistory?.incomeStatementHistory;
   const hasFinancialHistory = financialHistory && financialHistory.length > 0;
@@ -64,14 +47,14 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
   const chartData: ChartData[] = [];
 
   // Agregar dato TTM (2025) si existe
-  if (ttmNetIncome) {
-    const ttmNetIncomeValue = getRawValue(ttmNetIncome);
+  if (ttmTotalRevenue) {
+    const ttmTotalRevenueValue = getRawValue(ttmTotalRevenue);
     const currentYear = new Date().getFullYear().toString();
 
-    if (typeof ttmNetIncomeValue === "number") {
+    if (typeof ttmTotalRevenueValue === "number") {
       chartData.push({
-        year: currentYear, // 2025
-        netIncome: ttmNetIncomeValue,
+        year: currentYear,
+        totalRevenue: ttmTotalRevenueValue,
       });
     }
   }
@@ -79,7 +62,6 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
   // Agregar datos históricos
   if (hasFinancialHistory) {
     financialHistory.forEach((item) => {
-      // Extraer el año
       let year = "N/A";
       try {
         if (item.endDate) {
@@ -95,13 +77,12 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
         console.error("Error parsing date:", error);
       }
 
-      const netIncomeValue = getRawValue(item.netIncome);
-
-      // Solo agregar si no es el año actual (para evitar duplicados con TTM)
+      const totalRevenueValue = getRawValue(item.totalRevenue);
       if (year !== new Date().getFullYear().toString()) {
         chartData.push({
           year,
-          netIncome: typeof netIncomeValue === "number" ? netIncomeValue : null,
+          totalRevenue:
+            typeof totalRevenueValue === "number" ? totalRevenueValue : null,
         });
       }
     });
@@ -109,16 +90,17 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
 
   // Ordenar por año (ascendente)
   chartData.sort((a, b) => parseInt(a.year) - parseInt(b.year));
+
   const hasData = chartData.length > 0;
 
   if (!hasData) {
     return (
       <div className="bg-yellow-50 p-6 rounded-lg text-center my-8">
         <h4 className="text-lg font-semibold text-yellow-800 mb-2">
-          Datos de Ingresos Netos No Disponibles
+          Datos de Ingresos Totales No Disponibles
         </h4>
         <p className="text-sm text-yellow-600">
-          La información histórica de Ingresos Netos no está disponible para
+          La información histórica de Ingresos Totales no está disponible para
           esta empresa.
         </p>
       </div>
@@ -128,7 +110,7 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
   return (
     <section className="bg-white rounded-lg shadow-xl p-6 md:p-8 mb-12">
       <h3 className="text-2xl font-semibold text-[#0A2342] mb-6 text-center">
-        Análisis de Ingresos Netos
+        Análisis de Ingresos Totales
       </h3>
       <div className="bg-gray-50 p-6 rounded-lg">
         <div className="h-80 w-full">
@@ -141,7 +123,7 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
               <XAxis dataKey="year" />
               <YAxis
                 label={{
-                  value: "Ingreso Neto ($)",
+                  value: "Ingreso Total ($)",
                   angle: -90,
                   position: "outside",
                   dx: -70,
@@ -150,7 +132,7 @@ export default function NetIncomeChart({ assetData }: NetIncomeChartProps) {
                 tickFormatter={formatYAxisTick}
               />
               <Tooltip formatter={formatTooltipValue} />
-              <Bar dataKey="netIncome" fill="#4B5563" name="Ingreso Neto" />
+              <Bar dataKey="totalRevenue" fill="#4B5563" name="Ingreso Total" />
             </BarChart>
           </ResponsiveContainer>
         </div>

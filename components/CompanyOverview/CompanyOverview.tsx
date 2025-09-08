@@ -5,7 +5,7 @@ import { ApiAssetItem } from "@/types/api";
 import DataListItem from "../Shared/DataListItem";
 import { translateText } from "@/app/actions/translateActions";
 import NetIncomeChart from "../NetIncomeChart/NetIncomeChart";
-import FreeCashFlowChart from "../FreeCashFlowChart/FreeCashFlowChart";
+import TotalRevenueChart from "../TotalRevenueChart/TotalRevenueChart";
 
 interface CompanyOverviewProps {
   assetData: ApiAssetItem;
@@ -17,8 +17,6 @@ export default function CompanyOverview({ assetData }: CompanyOverviewProps) {
   const [translatedSummary, setTranslatedSummary] = useState<string>("");
   const [isTranslating, setIsTranslating] = useState(false);
   const [translationError, setTranslationError] = useState<string>("");
-
- 
 
   useEffect(() => {
     const translateBusinessSummary = async () => {
@@ -139,9 +137,11 @@ export default function CompanyOverview({ assetData }: CompanyOverviewProps) {
             )}
           </ul>
         </div>
+
+        {/* Sección de logo de Emporium */}
         <div>
+          <TotalRevenueChart assetData={assetData} />
           <NetIncomeChart assetData={assetData} />
-          <FreeCashFlowChart assetData={assetData} />
         </div>
       </div>
     </section>
