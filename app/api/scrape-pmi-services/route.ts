@@ -1,143 +1,273 @@
 // app/api/scrape-pmi-services/route.ts
-import axios from "axios"; // Para hacer solicitudes HTTP
-import * as cheerio from "cheerio"; // Para parsear el HTML
-import { NextResponse } from "next/server"; // Para manejar las respuestas en App Router
+import axios from "axios";
+import * as cheerio from "cheerio";
+import { NextResponse } from "next/server";
 
-// Definición de tipos para la respuesta de la API
 interface ScrapedData {
   variable: string;
   actualValue: number | null;
   forecastValue: number | null;
+  previousValue?: number | null;
+  sourceText?: string;
   error?: string;
 }
 
+// Función auxiliar para parsear valores numéricos de forma segura
+function safeParseFloat(value: string | null | undefined): number | null {
+  if (!value) return null;
+
+  const cleanedValue = value.replace(/[^\d.]/g, "");
+  const parsed = parseFloat(cleanedValue);
+
+  return isNaN(parsed) ? null : parsed;
+}
+
 export async function GET() {
-  const url = "https://tradingeconomics.com/united-states/services-pmi"; // URL del PMI de Servicios
+  const url = "https://tradingeconomics.com/united-states/services-pmi";
 
   try {
-    // Realizar la solicitud HTTP para obtener el HTML de la página
     const { data } = await axios.get(url, {
       headers: {
-        // Es buena práctica incluir un User-Agent para simular un navegador real
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
       },
+      timeout: 10000,
     });
 
-    // Cargar el HTML en Cheerio para facilitar la manipulación del DOM
     const $ = cheerio.load(data);
-
     let actualValue: number | null = null;
     let forecastValue: number | null = null;
+    let previousValue: number | null = null;
 
-    // Obtener todo el texto del cuerpo de la página para buscar los valores
+    // Obtener todo el texto del cuerpo para búsquedas avanzadas
     const pageText = $("body").text();
-    // Para depuración: console.log("Texto completo de la página (primeros 500 caracteres):", pageText.substring(0, 500));
+    const cleanText = pageText.replace(/\s+/g, " ").trim();
 
-    // --- Extracción de valores usando expresiones regulares ---
-
-    // Definir patrones de expresiones regulares para el valor actual
-    // Se prueban en orden de prioridad, del más nuevo/específico al más general
-    const actualValuePatterns = [
-      // Nuevo patrón: "inched lower to X", "rose to X", "increased to X"
-      /(?:inched lower to|rose to|increased to)\s+([\d.]+)/i,
-      // Patrón existente: "flash estimate of X"
-      /flash estimate of\s+([\d.]+)/i,
-    ];
-
-    // Definir patrones de expresiones regulares para el valor de previsión (forecast)
-    // Se prueban en orden de prioridad, del más nuevo/específico al más general
-    const forecastValuePatterns = [
-      // Nuevo patrón: "market consensus of Y"
-      /market consensus of\s+([\d.]+)/i,
-      // Patrón existente: "initial market consensus of Y"
-      /initial market consensus of\s+([\d.]+)/i,
-    ];
-
-    // Intentar extraer el valor actual usando los patrones definidos
-    for (const pattern of actualValuePatterns) {
-      const match = pageText.match(pattern);
-      if (match && match[1]) {
-        actualValue = parseFloat(match[1]);
-        // Para depuración: console.log("Actual Match (Regex):", match[1], "Parsed:", actualValue);
-        break; // Detenerse en el primer patrón que coincida
-      }
+    // ESTRATEGIA 1: Extracción directa de elementos específicos
+    const actualValueElement = $(
+      ".actual-value, .latest-value, .current-value, .value"
+    )
+      .first()
+      .text()
+      .trim();
+    if (actualValueElement) {
+      actualValue = safeParseFloat(actualValueElement);
     }
 
-    // Intentar extraer el valor de previsión usando los patrones definidos
-    for (const pattern of forecastValuePatterns) {
-      const match = pageText.match(pattern);
-      if (match && match[1]) {
-        forecastValue = parseFloat(match[1]);
-        // Para depuración: console.log("Forecast Match (Regex):", match[1], "Parsed:", forecastValue);
-        break; // Detenerse en el primer patrón que coincida
-      }
-    }
+    // ESTRATEGIA 2: Búsqueda con expresiones regulares mejoradas para el nuevo contexto
+    const patterns = [
+      // Patrones para valor actual (54.5)
+      /(?:fell to|dropped to|declined to|decreased to|stood at|was|reached)\s+([\d.]+)/gi,
+      /(?:Services PMI.*?)([\d.]+)(?:\s+in\s+\w+\s+\d{4})/gi,
+      /(?:The.*?Services PMI.*?)([\d.]+)(?:\s+from)/gi,
 
-    // --- Fallback para buscar en tablas si las expresiones regulares no encontraron los valores ---
-    // Esta lógica solo se ejecuta si los valores aún son null después de los intentos con regex
-    if (actualValue === null || forecastValue === null) {
-      $(".table-responsive .table-hover tbody tr").each((i, el) => {
-        const variableName = $(el).find("td a").first().text().trim();
-        if (variableName.includes("Services PMI")) {
-          const values = $(el)
-            .find("td")
-            .map((j, td) => $(td).text().trim())
-            .get();
-          // Solo asignar si el valor aún no se ha encontrado por regex
-          if (values[1] && actualValue === null) {
-            actualValue = parseFloat(values[1].replace(",", "."));
-            // Para depuración: console.log("Actual Match (Table Fallback):", values[1], "Parsed:", actualValue);
-          }
-          if (values[2] && forecastValue === null) {
-            forecastValue = parseFloat(values[2].replace(",", "."));
-            // Para depuración: console.log("Forecast Match (Table Fallback):", values[2], "Parsed:", forecastValue);
-          }
-          // Si ambos valores se encuentran por tabla, podemos salir del bucle .each para optimizar
-          if (actualValue !== null && forecastValue !== null) {
-            return false; // Esto detiene la iteración de .each
+      // Patrones para valor estimado/previo (55.7 y 55.4)
+      /(?:from|compared to|against|versus)\s+([\d.]+)(?:\s+in the previous month)/gi,
+      /(?:flash estimate of|preliminary estimate of|initial estimate of)\s+([\d.]+)/gi,
+      /(?:revised.*?from.*?)([\d.]+)/gi,
+      /(?:market expectations of|market consensus of|forecast of)\s+([\d.]+)/gi,
+      /(?:year-to-date-high of|previous month.*?)([\d.]+)/gi,
+
+      // Patrones específicos para el nuevo contexto
+      /(?:fell to\s+[\d.]+).*?from.*?([\d.]+)(?:\s+in the previous month)/gi,
+      /(?:revised lower from\s+)([\d.]+)/gi,
+      /(?:remaining.*?ahead of.*?expectations of\s+)([\d.]+)/gi,
+    ];
+
+    const matches: number[] = [];
+
+    // Buscar coincidencias en el texto
+    patterns.forEach((pattern) => {
+      let match;
+      while ((match = pattern.exec(cleanText)) !== null) {
+        if (match[1]) {
+          const parsedValue = safeParseFloat(match[1]);
+          if (parsedValue !== null) {
+            matches.push(parsedValue);
           }
         }
-      });
+      }
+    });
+
+    // Procesar las coincidencias encontradas
+    if (matches.length >= 2) {
+      // Ordenar y deducir qué valor es actual y cuál es estimado
+      const uniqueMatches = [...new Set(matches)];
+
+      // Buscar contexto específico para determinar los valores
+      if (actualValue === null) {
+        // El valor actual suele ser el que sigue a "fell to", "dropped to", etc.
+        const actualMatch = cleanText.match(
+          /(fell to|dropped to|declined to|decreased to)\s+([\d.]+)/i
+        );
+        if (actualMatch && actualMatch[2]) {
+          actualValue = safeParseFloat(actualMatch[2]);
+        } else {
+          // Si no hay contexto claro, tomar el valor más bajo (generalmente el actual)
+          actualValue = Math.min(...uniqueMatches);
+        }
+      }
+
+      if (forecastValue === null) {
+        // Buscar específicamente el valor estimado en el contexto
+        const estimateContext = cleanText.match(
+          /(flash estimate of|preliminary estimate of|market expectations of)\s+([\d.]+)/i
+        );
+        if (estimateContext && estimateContext[2]) {
+          forecastValue = safeParseFloat(estimateContext[2]);
+        } else {
+          // Si hay múltiples valores, el forecast suele ser el más alto
+          forecastValue = Math.max(...uniqueMatches);
+        }
+      }
     }
 
-    // --- Manejo de la respuesta ---
+    // ESTRATEGIA 3: Búsqueda específica para el contexto exacto proporcionado
+    const specificPatterns = [
+      /fell to ([\d.]+).*?from.*?([\d.]+).*?in the previous month.*?revised.*?from.*?flash estimate of ([\d.]+)/i,
+      /fell to ([\d.]+).*?from.*?([\d.]+).*?previous month.*?flash estimate of ([\d.]+)/i,
+      /fell to ([\d.]+).*?from.*?([\d.]+).*?market expectations of ([\d.]+)/i,
+      /([\d.]+).*?from.*?([\d.]+).*?flash estimate.*?([\d.]+)/i,
+    ];
 
-    // Si aún no se encuentran ambos valores, devolver un error
+    for (const pattern of specificPatterns) {
+      const match = cleanText.match(pattern);
+      if (match) {
+        // Para patrones con 3 capturas: actual, previous, estimate
+        if (match[1] && match[2] && match[3]) {
+          actualValue = safeParseFloat(match[1]);
+          previousValue = safeParseFloat(match[2]);
+          forecastValue = safeParseFloat(match[3]);
+          break;
+        }
+        // Para patrones con 2 capturas
+        else if (match[1] && match[2]) {
+          actualValue = safeParseFloat(match[1]);
+          forecastValue = safeParseFloat(match[2]);
+          break;
+        }
+      }
+    }
+
+    // ESTRATEGIA 4: Búsqueda en tablas (fallback robusto)
     if (actualValue === null || forecastValue === null) {
-      console.warn(
-        "No se pudieron encontrar ambos valores (actual y previsión) para el PMI de Servicios."
+      $(".table-responsive, .table, .data-table, .economic-calendar").each(
+        (i, table) => {
+          const rows = $(table).find("tr");
+
+          rows.each((j, row) => {
+            const rowText = $(row).text();
+            if (rowText.includes("Services") || rowText.includes("PMI")) {
+              const cells = $(row).find("td, th");
+
+              cells.each((k, cell) => {
+                const cellText = $(cell).text().trim();
+                const numberMatch = cellText.match(/([\d.]+)/);
+
+                if (numberMatch) {
+                  const value = safeParseFloat(numberMatch[1]);
+                  if (value === null) return;
+
+                  const headerText = $(table)
+                    .find("th")
+                    .eq(k)
+                    .text()
+                    .toLowerCase();
+
+                  if (
+                    headerText.includes("actual") ||
+                    headerText.includes("latest")
+                  ) {
+                    actualValue = value;
+                  } else if (
+                    headerText.includes("forecast") ||
+                    headerText.includes("estimate") ||
+                    headerText.includes("expectation")
+                  ) {
+                    forecastValue = value;
+                  } else if (headerText.includes("previous")) {
+                    previousValue = value;
+                  }
+
+                  // Si no hay headers claros, usar posición relativa
+                  if (actualValue === null && k === 1) actualValue = value;
+                  if (forecastValue === null && k === 2) forecastValue = value;
+                  if (previousValue === null && k === 3) previousValue = value;
+                }
+              });
+            }
+          });
+        }
       );
-      return NextResponse.json<ScrapedData>( // Tipado explícito de la respuesta
+    }
+
+    // ESTRATEGIA 5: Búsqueda en elementos de noticias o contenido principal
+    $(".news-content, .article-content, .main-content, .economic-data").each(
+      (i, element) => {
+        const content = $(element).text();
+
+        // Patrones específicos para Services PMI
+        const contentPatterns = [
+          /Services PMI.*?fell to ([\d.]+).*?from.*?([\d.]+).*?flash estimate of ([\d.]+)/i,
+          /Services PMI.*?([\d.]+).*?previous.*?([\d.]+).*?estimate.*?([\d.]+)/i,
+          /Services PMI.*?([\d.]+).*?market expectations.*?([\d.]+)/i,
+        ];
+
+        for (const pattern of contentPatterns) {
+          const match = content.match(pattern);
+          if (match) {
+            if (match[1]) actualValue = safeParseFloat(match[1]);
+            if (match[2]) previousValue = safeParseFloat(match[2]);
+            if (match[3]) forecastValue = safeParseFloat(match[3]);
+            break;
+          }
+        }
+      }
+    );
+
+    // Validación y limpieza final de valores
+    if (actualValue !== null && (actualValue < 0 || actualValue > 100)) {
+      console.warn("Valor actual fuera de rango probable:", actualValue);
+      actualValue = null;
+    }
+
+    if (forecastValue !== null && (forecastValue < 0 || forecastValue > 100)) {
+      console.warn("Valor estimado fuera de rango probable:", forecastValue);
+      forecastValue = null;
+    }
+
+    // Manejo de la respuesta
+    if (actualValue === null) {
+      return NextResponse.json<ScrapedData>(
         {
-          error:
-            "No se pudieron extraer los datos del PMI de Servicios. El formato de la página puede haber cambiado o los valores no están presentes.",
-          variable: "PMI de Servicios", // Proporcionar todas las propiedades de ScrapedData
+          error: "No se pudo extraer el valor actual del PMI de Servicios.",
+          variable: "PMI de Servicios",
           actualValue: null,
           forecastValue: null,
+          sourceText: cleanText.substring(0, 500) + "...",
         },
         { status: 404 }
       );
     }
 
-    // Si se encuentran los valores, devolverlos en la respuesta
     return NextResponse.json<ScrapedData>({
-      // Tipado explícito de la respuesta
       variable: "PMI de Servicios",
       actualValue,
       forecastValue,
+      previousValue,
+      sourceText: cleanText.substring(0, 300) + "...",
     });
   } catch (error: unknown) {
-    // Captura y maneja cualquier error durante el proceso de scraping
-    const errorMessage = error instanceof Error ? error.message : String(error); // Manejo seguro del tipo 'unknown'
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(
       "Error al hacer scraping del PMI de Servicios:",
       errorMessage
     );
-    return NextResponse.json<ScrapedData>( // Tipado explícito de la respuesta para el error
+
+    return NextResponse.json<ScrapedData>(
       {
-        error: `Fallo al obtener datos del PMI de Servicios: ${errorMessage}. Verifique la URL o la conexión.`,
-        variable: "PMI de Servicios", // Proporcionar todas las propiedades de ScrapedData
+        error: `Fallo al obtener datos del PMI de Servicios: ${errorMessage}`,
+        variable: "PMI de Servicios",
         actualValue: null,
         forecastValue: null,
       },

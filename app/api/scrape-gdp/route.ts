@@ -30,81 +30,104 @@ export async function GET() {
     let actualValue: number | null = null;
     let forecastValue: number | null = null;
 
-    // Obtener todo el texto del cuerpo de la página para buscar los valores
-    const pageText = $("body").text();
-    // Para depuración: console.log("Texto completo de la página (primeros 500 caracteres):", pageText.substring(0, 500));
-
-    // Expresión regular para encontrar el valor actual:
-    // Busca "grew an annualized X%" o "rose X%" o "increased X%"
-    const actualMatch = pageText.match(
-      /(?:grew an annualized|rose|increased)\s+([\d.]+?)%/i
-    );
-    if (actualMatch && actualMatch[1]) {
-      actualValue = parseFloat(actualMatch[1]);
-      // Para depuración: console.log("Actual Match:", actualMatch[1], "Parsed:", actualValue);
+    // Lógica 1: Extracción directa de la clase .actual-value
+    const actualValueElement = $(".actual-value").first().text().trim();
+    if (actualValueElement) {
+      actualValue = parseFloat(
+        actualValueElement.replace("%", "").replace(",", ".")
+      );
     }
 
-    // Expresión regular para encontrar la previsión:
-    // Busca "expectations of a X%" o "forecast of a X%" o "beating expectations of a X%"
-    const forecastMatch = pageText.match(
-      /(?:expectations of a|forecast of a|beating expectations of a)\s+([\d.]+?)%/i
-    );
-    if (forecastMatch && forecastMatch[1]) {
-      forecastValue = parseFloat(forecastMatch[1]);
-      // Para depuración: console.log("Forecast Match:", forecastMatch[1], "Parsed:", forecastValue);
-    }
-
-    // Fallback para buscar en tablas si las expresiones regulares no encuentran los valores
-    $(".table-responsive .table-hover tbody tr").each((i, el) => {
-      const variableName = $(el).find("td a").first().text().trim();
-      if (variableName.includes("GDP Growth Rate")) {
-        const values = $(el)
-          .find("td")
-          .map((j, td) => $(td).text().trim())
-          .get();
-        if (values[1] && actualValue === null) {
-          actualValue = parseFloat(
-            values[1].replace("%", "").replace(",", ".")
-          );
-        }
-        if (values[2] && forecastValue === null) {
-          forecastValue = parseFloat(
-            values[2].replace("%", "").replace(",", ".")
-          );
-        }
-        return false;
+    // Lógica 2: Fallback buscando en el texto de la página
+    if (actualValue === null) {
+      const pageText = $("body").text();
+      // Ampliar la expresión regular para el valor actual
+      const actualMatch = pageText.match(
+        /(?:grew an annualized|rose|increased|revised(?: slightly)? higher to|grew at an annualized rate of)\s+([\d.]+?)%/i
+      );
+      if (actualMatch && actualMatch[1]) {
+        actualValue = parseFloat(actualMatch[1]);
       }
-    });
+    }
+
+    // Lógica 3: Buscar en la tabla como último recurso si las otras fallan
+    if (actualValue === null) {
+      $(".table-responsive .table-hover tbody tr").each((i, el) => {
+        const variableName = $(el).find("td a").first().text().trim();
+        if (variableName.includes("GDP Growth Rate")) {
+          const values = $(el)
+            .find("td")
+            .map((j, td) => $(td).text().trim())
+            .get();
+          if (values[1]) {
+            actualValue = parseFloat(
+              values[1].replace("%", "").replace(",", ".")
+            );
+          }
+          if (values[2]) {
+            forecastValue = parseFloat(
+              values[2].replace("%", "").replace(",", ".")
+            );
+          }
+          return false;
+        }
+      });
+    }
+
+    // Lógica para encontrar la previsión:
+    const pageText = $("body").text();
+
+    // Nueva lógica para capturar la "first estimate"
+    const firstEstimateMatch = pageText.match(
+      /first estimate of\s+([\d.]+?)%/i
+    );
+    if (firstEstimateMatch && firstEstimateMatch[1]) {
+      forecastValue = parseFloat(firstEstimateMatch[1]);
+    } else if (
+      actualValue !== null &&
+      pageText.includes("aligning with market expectations")
+    ) {
+      // Si no hay una primera estimación, buscar la frase de "expectativas del mercado"
+      forecastValue = actualValue;
+    } else {
+      // Fallback para buscar una previsión explícita si las frases anteriores no están presentes
+      const forecastExplicitMatch = pageText.match(
+        /(?:expectations of a|forecast of a|beating expectations of a)\s+([\d.]+?)%/i
+      );
+      if (forecastExplicitMatch && forecastExplicitMatch[1]) {
+        forecastValue = parseFloat(forecastExplicitMatch[1]);
+      }
+    }
 
     if (actualValue === null || forecastValue === null) {
       console.warn(
         "No se pudieron encontrar ambos valores (actual y previsión) para el PIB."
       );
-      return NextResponse.json<ScrapedData>( // Tipado explícito de la respuesta
-        { 
+      return NextResponse.json<ScrapedData>(
+        {
           error: "No se pudieron extraer los datos de Crecimiento del PIB.",
-          variable: "Crecimiento del PIB", // Proporcionar todas las propiedades de ScrapedData
+          variable: "Crecimiento del PIB",
           actualValue: null,
-          forecastValue: null 
+          forecastValue: null,
         },
         { status: 404 }
       );
     }
 
-    return NextResponse.json<ScrapedData>({ // Tipado explícito de la respuesta
+    return NextResponse.json<ScrapedData>({
       variable: "Crecimiento del PIB",
       actualValue,
       forecastValue,
     });
-  } catch (error: unknown) { // Cambiado 'any' a 'unknown'
-    const errorMessage = error instanceof Error ? error.message : String(error); // Manejo seguro del tipo 'unknown'
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Error al hacer scraping del PIB:", errorMessage);
-    return NextResponse.json<ScrapedData>( // Tipado explícito de la respuesta
+    return NextResponse.json<ScrapedData>(
       {
         error: `Fallo al obtener datos de Crecimiento del PIB: ${errorMessage}`,
-        variable: "Crecimiento del PIB", // Proporcionar todas las propiedades de ScrapedData
+        variable: "Crecimiento del PIB",
         actualValue: null,
-        forecastValue: null
+        forecastValue: null,
       },
       { status: 500 }
     );
