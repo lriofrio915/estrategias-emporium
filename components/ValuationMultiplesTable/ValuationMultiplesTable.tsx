@@ -1,48 +1,34 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import Tooltip from "../Shared/Tooltips";
+
+// Interfaz para los datos que este componente espera recibir
+export interface MultiplesData {
+  trailingPE?: number;
+  enterpriseValue?: number;
+  ebitda?: number;
+  ebit?: number;
+  freeCashFlow?: number;
+}
 
 interface Props {
   ticker: string;
   currentPrice: number;
+  data: MultiplesData | null; // Recibe los datos como prop
 }
 
-interface ValuationData {
-  ltm: number;
-  target: number;
-}
-
-interface MultiplesData {
-  headers: string[];
-  metrics: { [key: string]: number[] }; // Corregimos el tipo a number[]
-}
-
-interface IncomeStatementData {
-  metrics: {
-    ebit: number[];
-    ebitda: number[];
-  };
-}
-
-interface FreeCashFlowData {
-  metrics: {
-    freeCashFlow: number[];
-  };
-}
-
-const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
-  const [valuationMetrics, setValuationMetrics] = useState<{
-    [key: string]: ValuationData;
-  }>({});
-  const [loading, setLoading] = useState<boolean>(true);
-
-  // Mantenemos los objetivos "hardcodeados" inicialmente
-  const hardcodedTargets = {
-    PER: 0,
-    EV_EBITDA: 0,
-    EV_EBIT: 0,
-    EV_FCF: 0,
-  };
+const ValuationMultiplesTable: React.FC<Props> = ({
+  ticker,
+  currentPrice,
+  data,
+}) => {
+  // Los objetivos ahora son parte del estado para que el usuario pueda modificarlos
+  const [targets, setTargets] = useState({
+    PER: 20,
+    EV_EBITDA: 16,
+    EV_EBIT: 18,
+    EV_FCF: 22,
+  });
 
   const metricDescriptions: { [key: string]: string } = {
     PER: "Mide cuánto están los inversores dispuestos a pagar por cada dólar de ganancias de una empresa. Se calcula dividiendo el precio de la acción entre el EPS.",
@@ -54,96 +40,38 @@ const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
       "Compara el valor total de la empresa (Enterprise Value) con el flujo de caja libre. Es útil porque se enfoca en la caja real que la empresa produce.",
   };
 
-  useEffect(() => {
-    const fetchValuationData = async () => {
-      setLoading(true);
-      try {
-        const [
-          keyStatisticsResponse,
-          incomeStatementResponse,
-          freeCashFlowResponse,
-        ] = await Promise.all([
-          fetch(`/api/key-statistics?ticker=${ticker}`).then((res) =>
-            res.json()
-          ),
-          fetch(`/api/income-statement?ticker=${ticker}`).then((res) =>
-            res.json()
-          ),
-          fetch(`/api/free-cash-flow?ticker=${ticker}`).then((res) =>
-            res.json()
-          ),
-        ]);
+  // Calculamos los múltiplos LTM (Last Twelve Months) basados en los datos recibidos
+  const ltmMetrics = useMemo(() => {
+    if (!data) {
+      return { PER: 0, EV_EBITDA: 0, EV_EBIT: 0, EV_FCF: 0 };
+    }
+    const {
+      trailingPE = 0,
+      enterpriseValue = 0,
+      ebitda = 0,
+      ebit = 0,
+      freeCashFlow = 0,
+    } = data;
 
-        // Ajustamos el tipo de MultiplesData ya que los valores de metrics son arrays
-        const keyStatisticsData: {
-          headers: string[];
-          metrics: { [key: string]: number[] };
-        } = keyStatisticsResponse;
-        const incomeStatementData: IncomeStatementData =
-          incomeStatementResponse;
-        const freeCashFlowData: FreeCashFlowData = freeCashFlowResponse;
-
-        // Extraemos los valores del LTM (primer elemento del array) de forma segura
-        const trailingPE =
-          (keyStatisticsData.metrics["trailingPE"] || [])[0] || 0;
-        const forwardPE =
-          (keyStatisticsData.metrics["forwardPE"] || [])[0] || 0;
-        const enterpriseValue =
-          (keyStatisticsData.metrics["enterpriseValue"] || [])[0] || 0;
-
-        // Extraemos los valores LTM de las otras APIs de forma segura
-        const ltmEBITDA = (incomeStatementData.metrics.ebitda || [])[0] || 0;
-        const ltmEBIT = (incomeStatementData.metrics.ebit || [])[0] || 0;
-        const ltmFCF = (freeCashFlowData.metrics.freeCashFlow || [])[0] || 0;
-
-        // Calculamos las métricas para los últimos 12 meses (LTM)
-        const ltmMetrics = {
-          PER: trailingPE,
-          EV_EBITDA: ltmEBITDA !== 0 ? enterpriseValue / ltmEBITDA : 0,
-          EV_EBIT: ltmEBIT !== 0 ? enterpriseValue / ltmEBIT : 0,
-          EV_FCF: ltmFCF !== 0 ? enterpriseValue / ltmFCF : 0,
-        };
-
-        setValuationMetrics({
-          PER: {
-            ltm: ltmMetrics.PER,
-            target: hardcodedTargets.PER,
-          },
-          EV_EBITDA: {
-            ltm: ltmMetrics.EV_EBITDA,
-            target: hardcodedTargets.EV_EBITDA,
-          },
-          EV_EBIT: {
-            ltm: ltmMetrics.EV_EBIT,
-            target: hardcodedTargets.EV_EBIT,
-          },
-          EV_FCF: {
-            ltm: ltmMetrics.EV_FCF,
-            target: hardcodedTargets.EV_FCF,
-          },
-        });
-      } catch (error) {
-        console.error("Failed to fetch valuation data:", error);
-      } finally {
-        setLoading(false);
-      }
+    return {
+      PER: trailingPE,
+      EV_EBITDA: ebitda && ebitda !== 0 ? enterpriseValue / ebitda : 0,
+      EV_EBIT: ebit && ebit !== 0 ? enterpriseValue / ebit : 0,
+      EV_FCF:
+        freeCashFlow && freeCashFlow !== 0 ? enterpriseValue / freeCashFlow : 0,
     };
-    fetchValuationData();
-  }, [ticker]);
+  }, [data]);
 
   const handleTargetChange = (key: string, value: string) => {
-    setValuationMetrics((prevMetrics) => ({
-      ...prevMetrics,
-      [key]: {
-        ...prevMetrics[key],
-        target: parseFloat(value) || 0,
-      },
+    setTargets((prevTargets) => ({
+      ...prevTargets,
+      [key]: parseFloat(value) || 0,
     }));
   };
 
-  if (loading) {
+  if (!data) {
     return (
-      <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200">
+      <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200 animate-pulse">
         <div className="flex justify-between items-center mb-4">
           <div className="h-6 w-1/3 bg-gray-200 rounded"></div>
           <div className="text-right">
@@ -151,9 +79,11 @@ const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
             <div className="h-8 w-32 bg-gray-200 rounded"></div>
           </div>
         </div>
-        <div className="flex items-center justify-center p-8">
-          <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-teal-500"></div>
-          <p className="ml-4 text-xl text-teal-400">Cargando valoraciones...</p>
+        <div className="space-y-4 mt-4">
+          <div className="h-6 bg-gray-200 rounded"></div>
+          <div className="h-6 bg-gray-200 rounded"></div>
+          <div className="h-6 bg-gray-200 rounded"></div>
+          <div className="h-6 bg-gray-200 rounded"></div>
         </div>
       </div>
     );
@@ -179,7 +109,7 @@ const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
           </tr>
         </thead>
         <tbody>
-          {Object.entries(valuationMetrics).map(([key, value]) => (
+          {Object.entries(ltmMetrics).map(([key, value]) => (
             <tr key={key} className="border-b border-gray-200">
               <td className="py-2 font-semibold uppercase">
                 <Tooltip
@@ -188,13 +118,13 @@ const ValuationMultiplesTable: React.FC<Props> = ({ ticker, currentPrice }) => {
                   {key.replace("_", " / ")}
                 </Tooltip>
               </td>
-              <td className="py-2 text-center">{value.ltm?.toFixed(2) || "-"}</td>
+              <td className="py-2 text-center">{value?.toFixed(2) || "-"}</td>
               <td className="py-2 text-center text-red-600 font-bold">
                 <input
                   type="number"
-                  value={value.target}
+                  value={targets[key as keyof typeof targets]}
                   onChange={(e) => handleTargetChange(key, e.target.value)}
-                  className="w-20 text-right bg-transparent border-none outline-none"
+                  className="w-20 text-center bg-transparent border-none outline-none focus:ring-0"
                 />
               </td>
             </tr>
