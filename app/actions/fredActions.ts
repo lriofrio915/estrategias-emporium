@@ -1,84 +1,113 @@
 "use server";
 
-import { computeChanges, phaseColor } from "../../lib/reccesion/utils";
-import { SERIES } from "../../lib/reccesion/constants";
-import type {
-  IndicatorData,
-  Indicator,
-  ProcessedIndicator,
-  FredApiResponse,
-  FredObservation,
-} from "../../lib/reccesion/types";
+import { SERIES } from "@/lib/reccesion/constants";
+import { FredSeriesResponse, ProcessedIndicator } from "@/lib/reccesion/types";
+import { processFredData } from "@/lib/reccesion/utils";
 
-async function fetchFredSeries(seriesId: string): Promise<IndicatorData[]> {
-  const apiKey = process.env.FRED_API_KEY; // Ya no necesita NEXT_PUBLIC_
-  if (!apiKey) {
-    throw new Error(
-      "La clave de API de FRED no está configurada en el servidor."
-    );
+// Variable de entorno para la clave de la API de FRED
+const API_KEY = process.env.FRED_API_KEY;
+const API_URL = "https://api.stlouisfed.org/fred/series/observations";
+
+/**
+ * Obtiene los datos de una serie específica desde la API de FRED.
+ * Se ajusta el tipo de retorno para manejar errores de forma explícita.
+ */
+async function getFredSeriesData(
+  seriesId: string
+): Promise<Partial<FredSeriesResponse>> {
+  // <-- CORRECCIÓN 1: Se usa Partial para el tipo de retorno
+  if (!API_KEY) {
+    throw new Error("La variable de entorno FRED_API_KEY no está configurada.");
   }
-  const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json`;
+
+  const tenYearsAgo = new Date();
+  tenYearsAgo.setFullYear(tenYearsAgo.getFullYear() - 15);
+  const observation_start = tenYearsAgo.toISOString().split("T")[0];
+
+  const params = new URLSearchParams({
+    series_id: seriesId,
+    api_key: API_KEY,
+    file_type: "json",
+    observation_start: observation_start,
+    sort_order: "desc",
+  });
+
+  const url = `${API_URL}?${params.toString()}`;
 
   try {
-    const response = await fetch(url, { cache: "no-store" }); // Evitar cache para datos frescos
+    const response = await fetch(url, { cache: "no-store" });
     if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({
-          error_message: `Respuesta no válida del servidor para ${seriesId}`,
-        }));
+      const errorData = await response.json();
       throw new Error(
-        errorData.error_message || `Error al obtener datos para ${seriesId}`
+        `Error de FRED para ${seriesId}: ${
+          errorData.error_message || response.statusText
+        }`
       );
     }
-    const data: FredApiResponse = await response.json();
-    return data.observations
-      .map((obs: FredObservation) => ({
-        date: new Date(obs.date),
-        value: parseFloat(obs.value),
-      }))
-      .filter((obs) => !isNaN(obs.value));
+    return await response.json();
   } catch (error) {
-    console.error(`Fallo al obtener la serie ${seriesId}:`, error);
-    throw error; // Re-lanzar el error para que sea capturado por el llamador
+    console.error(`Fallo al obtener datos para la serie ${seriesId}:`, error);
+    const message =
+      error instanceof Error
+        ? error.message
+        : `Fallo al obtener la serie ${seriesId}`;
+    return { error_message: message };
   }
 }
 
+/**
+ * Server Action principal que obtiene y procesa los datos para todos los indicadores.
+ */
 export async function fetchAllFredSeries(): Promise<{
   data?: ProcessedIndicator[];
   error?: string;
 }> {
+  const allSeriesPromises = SERIES.map((indicator) =>
+    getFredSeriesData(indicator.id)
+  );
+
   try {
-    const dataPromises = SERIES.map(async (s: Indicator) => {
-      const dfRaw = await fetchFredSeries(s.id);
-      const df = computeChanges(dfRaw, s.freq_hint);
+    const results = await Promise.allSettled(allSeriesPromises);
 
-      const last = df.length > 0 ? df[df.length - 1] : null;
-      const yoy = last?.pct_chg_yoy ?? NaN;
-      const mom = last?.pct_chg_seq ?? NaN;
-      const accel = last?.yoy_accel ?? NaN;
-      const color = phaseColor(s.id, s.kind, yoy, accel);
+    const processedData: ProcessedIndicator[] = results.map((result, index) => {
+      // <-- CORRECCIÓN 2: Tipado explícito para processedData
+      const indicator = SERIES[index];
 
-      return {
-        ...s,
-        latest_date: last?.date.toISOString().split("T")[0] ?? "—",
-        latest_value: last?.value ?? NaN,
-        yoy,
-        mom,
-        accel,
-        phase: color,
-        chartData: df.slice(-120),
-      };
+      if (result.status === "fulfilled" && result.value.observations) {
+        return processFredData(indicator, result.value.observations);
+      } else {
+        // La llamada falló, devolvió un error, o no tiene observaciones
+        console.warn(
+          `No se pudieron procesar los datos para ${indicator.name}.`
+        );
+
+        // <-- CORRECCIÓN 3: Manejo seguro de 'fulfilled' vs 'rejected'
+        const errorReason =
+          result.status === "rejected"
+            ? result.reason?.toString()
+            : result.value.error_message || "Datos no disponibles";
+
+        return {
+          ...indicator,
+          latest_value: NaN,
+          latest_date: "Error",
+          yoy: NaN,
+          mom: NaN,
+          accel: NaN,
+          phase: "Error", // Se mantiene como el literal string
+          values: [],
+          error: errorReason,
+        };
+      }
     });
 
-    const results = await Promise.all(dataPromises);
-    return { data: results };
+    return { data: processedData };
   } catch (error) {
-    return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "Ocurrió un error desconocido al obtener los datos de FRED.",
-    };
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Error desconocido al procesar las series de FRED.";
+    console.error(message);
+    return { error: message };
   }
 }

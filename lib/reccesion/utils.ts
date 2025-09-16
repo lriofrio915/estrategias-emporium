@@ -1,69 +1,78 @@
-// Contiene las funciones para procesar y calcular métricas a partir de los datos crudos.
-import type { IndicatorData } from "./types";
+import { Indicator, FredObservation, ProcessedIndicator } from "./types";
 
-/**
- * Calcula YoY, cambio secuencial y aceleración para una serie de datos.
- */
-export function computeChanges(
-  dfRaw: IndicatorData[],
-  freq: "m" | "q"
-): IndicatorData[] {
-  const period = freq === "m" ? 12 : 4;
-  const df = [...dfRaw].sort((a, b) => a.date.getTime() - b.date.getTime());
+export function processFredData(
+  indicator: Indicator,
+  observations: FredObservation[]
+): ProcessedIndicator {
+  // Filtrar valores "." que FRED a veces envía
+  const validObservations = observations.filter((obs) => obs.value !== ".");
 
-  for (let i = 0; i < df.length; i++) {
-    // YoY Pct Change
-    if (i >= period) {
-      const prevYearValue = df[i - period].value;
-      if (prevYearValue !== 0) {
-        df[i].pct_chg_yoy =
-          ((df[i].value - prevYearValue) / Math.abs(prevYearValue)) * 100;
-      }
-    }
-    // Sequential Pct Change
-    if (i >= 1) {
-      const prevValue = df[i - 1].value;
-      if (prevValue !== 0) {
-        df[i].pct_chg_seq =
-          ((df[i].value - prevValue) / Math.abs(prevValue)) * 100;
-      }
-    }
-    // YoY Acceleration
-    if (i >= period * 2) {
-      const prevYoy = df[i - period].pct_chg_yoy;
-      if (df[i].pct_chg_yoy !== undefined && prevYoy !== undefined) {
-        df[i].yoy_accel = df[i].pct_chg_yoy! - prevYoy;
-      }
-    }
+  if (validObservations.length < 13) {
+    // Necesitamos al menos 13 meses de datos para calcular YoY y aceleración
+    return {
+      ...indicator,
+      latest_value: NaN,
+      latest_date: "Datos insuficientes",
+      yoy: NaN,
+      mom: NaN,
+      accel: NaN,
+      phase: "Error",
+      values: [],
+      error: "Datos insuficientes para el análisis.",
+    };
   }
-  return df;
-}
 
-/**
- * Determina la fase del ciclo económico para un indicador.
- */
-export function phaseColor(
-  id: string,
-  kind: string,
-  yoy: number,
-  accel: number
-): string {
-  if (isNaN(yoy) || isNaN(accel)) return "⚪️";
+  const values = validObservations.map((obs) => ({
+    date: obs.date,
+    value: parseFloat(obs.value),
+  }));
 
-  const proCyclical = kind === "Pro-cíclico";
-  const isHousing = ["HOUST", "PERMIT"].includes(id);
+  const latest = values[0];
+  const prev = values[1];
+  const yearAgo = values[12];
+  const yearAgoPrev = values[13]; // Para la aceleración
 
-  if (proCyclical || isHousing) {
-    if (yoy > 0 && accel > 0) return "🟢"; // Expansión Acelerada
-    if (yoy > 0 && accel <= 0) return "🟡"; // Expansión Desacelerada
-    if (yoy <= 0 && accel <= 0) return "🔴"; // Contracción
-    if (yoy <= 0 && accel > 0) return "🟠"; // Recuperación
-  } else {
-    // Contra-cíclico
-    if (yoy > 0 && accel > 0) return "🔴";
-    if (yoy > 0 && accel <= 0) return "🟠";
-    if (yoy <= 0 && accel <= 0) return "🟢";
-    if (yoy <= 0 && accel > 0) return "🟡";
+  const latest_value = latest.value;
+  const latest_date = new Date(latest.date).toLocaleDateString("es-ES", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+
+  // Cambio Secuencial (MoM/QoQ)
+  const mom = prev
+    ? ((latest_value - prev.value) / Math.abs(prev.value)) * 100
+    : NaN;
+
+  // Cambio Interanual (YoY)
+  const yoy = yearAgo
+    ? ((latest_value - yearAgo.value) / Math.abs(yearAgo.value)) * 100
+    : NaN;
+
+  // Aceleración (cambio en el YoY)
+  const prevYoy = yearAgoPrev
+    ? ((prev.value - yearAgoPrev.value) / Math.abs(yearAgoPrev.value)) * 100
+    : NaN;
+  const accel = !isNaN(yoy) && !isNaN(prevYoy) ? yoy - prevYoy : NaN;
+
+  // Determinar la fase del ciclo económico
+  let phase: ProcessedIndicator["phase"] = "Error";
+  if (!isNaN(yoy) && !isNaN(accel)) {
+    if (yoy > 0 && accel > 0) phase = "Fase 1"; // Expansión Acelerada
+    else if (yoy > 0 && accel < 0) phase = "Fase 2"; // Expansión Desacelerada
+    else if (yoy < 0 && accel < 0) phase = "Fase 3"; // Contracción Acelerada
+    else if (yoy < 0 && accel > 0) phase = "Fase 4"; // Contracción Desacelerada
+    else phase = "Neutral";
   }
-  return "⚪️"; // Default
+
+  return {
+    ...indicator,
+    latest_value,
+    latest_date,
+    yoy,
+    mom,
+    accel,
+    phase,
+    values: values.reverse(), // revertir para que los gráficos tengan el orden cronológico correcto
+  };
 }

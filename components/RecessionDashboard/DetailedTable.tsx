@@ -1,4 +1,5 @@
 "use client";
+
 import React from "react";
 import type { ProcessedIndicator } from "../../lib/reccesion/types";
 
@@ -6,144 +7,115 @@ interface DetailedTableProps {
   data: ProcessedIndicator[];
 }
 
-const formatNumber = (
-  value: number | undefined | null,
-  precision: number = 2
-): string => {
-  if (value === undefined || value === null || isNaN(value)) return "—";
-  return value.toFixed(precision);
-};
-
-const formatPercent = (value: number | undefined | null): string => {
-  const formatted = formatNumber(value, 2);
-  return formatted === "—" ? "—" : `${formatted}%`;
+// 1. Reutilizamos el mismo objeto de estilos que en KpiCard para consistencia
+const phaseStyles = {
+  "Fase 1": { emoji: "🟢" },
+  "Fase 2": { emoji: "🟡" },
+  "Fase 3": { emoji: "🔴" },
+  "Fase 4": { emoji: "🟠" },
+  Neutral: { emoji: "⚪️" },
+  Error: { emoji: "⚫️" },
 };
 
 export const DetailedTable: React.FC<DetailedTableProps> = ({ data }) => {
-  const handleDownload = () => {
-    const headers = [
-      "Indicador",
-      "Tipo",
-      "Ticker",
-      "Fecha",
-      "Último",
-      "YoY",
-      "Secuencial",
-      "Aceleración YoY",
-      "Fase",
-      "FRED",
-    ];
-    const csvRows = [
-      headers.join(","),
-      ...data.map((row) =>
-        [
-          `"${row.name}"`,
-          row.kind,
-          row.id,
-          row.latest_date,
-          formatNumber(row.latest_value),
-          formatNumber(row.yoy),
-          formatNumber(row.mom),
-          formatNumber(row.accel),
-          row.phase,
-          row.fred_url,
-        ].join(",")
-      ),
-    ];
-
-    const csvString = csvRows.join("\n");
-    const blob = new Blob([csvString], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", "dashboard_ciclo_economico.csv");
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  // Función para obtener la clase de color basada en el valor numérico
+  const getValueColor = (value: number) => {
+    if (isNaN(value)) return "text-gray-400";
+    return value >= 0 ? "text-green-400" : "text-red-400";
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={handleDownload}
-          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg text-sm transition-colors"
-        >
-          ⬇️ Exportar CSV
+    <div className="bg-gray-800 rounded-xl p-6 border border-gray-700/50">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-xl font-semibold text-white">Detalles</h3>
+        <button className="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg text-sm hover:bg-green-600 transition-colors">
+          Exportar CSV
         </button>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left text-gray-300">
-          <thead className="text-xs text-gray-400 uppercase bg-gray-700">
-            <tr>
-              <th scope="col" className="px-4 py-3">
+        <table className="min-w-full text-sm text-left text-gray-300">
+          <thead className="text-xs text-gray-400 uppercase">
+            {/* 2. Cabeceras de la tabla actualizadas */}
+            <tr className="border-b-2 border-gray-700">
+              <th scope="col" className="py-3 px-4">
                 Indicador
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="py-3 px-4">
                 Tipo
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="py-3 px-4">
                 Fase
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="py-3 px-4">
                 Última Fecha
               </th>
-              <th scope="col" className="px-4 py-3 text-right">
+              <th scope="col" className="py-3 px-4">
                 Último Valor
               </th>
-              <th scope="col" className="px-4 py-3 text-right">
+              <th scope="col" className="py-3 px-4">
                 YoY
               </th>
-              <th scope="col" className="px-4 py-3 text-right">
+              <th scope="col" className="py-3 px-4">
                 Secuencial
               </th>
-              <th scope="col" className="px-4 py-3 text-right">
+              <th scope="col" className="py-3 px-4">
                 Aceleración YoY
               </th>
-              <th scope="col" className="px-4 py-3">
+              <th scope="col" className="py-3 px-4">
                 Enlace FRED
               </th>
             </tr>
           </thead>
           <tbody>
-            {data.map((item) => (
+            {data.map((indicator) => (
               <tr
-                key={item.id}
-                className="border-b border-gray-700 hover:bg-gray-600/50"
+                key={indicator.id}
+                className="border-b border-gray-700/50 hover:bg-gray-700/30"
               >
-                <td className="px-4 py-4 font-medium text-white whitespace-nowrap">
-                  {item.name}
+                <td className="py-4 px-4 font-medium text-white">
+                  {indicator.name}
                 </td>
-                <td className="px-4 py-4">{item.kind}</td>
-                <td className="px-4 py-4 text-xl">{item.phase}</td>
-                <td className="px-4 py-4">{item.latest_date}</td>
-                <td className="px-4 py-4 text-right">
-                  {formatNumber(item.latest_value)}
+                <td className="py-4 px-4">{indicator.kind}</td>
+                <td className="py-4 px-4 text-center">
+                  {/* 3. Renderizado del emoji en lugar del texto */}
+                  <span className="text-xl">
+                    {phaseStyles[indicator.phase]?.emoji ||
+                      phaseStyles.Error.emoji}
+                  </span>
+                </td>
+                <td className="py-4 px-4">{indicator.latest_date}</td>
+                <td className="py-4 px-4">
+                  {isNaN(indicator.latest_value)
+                    ? "N/A"
+                    : indicator.latest_value.toFixed(2)}
                 </td>
                 <td
-                  className={`px-4 py-4 text-right font-semibold ${
-                    item.yoy > 0 ? "text-green-400" : "text-red-400"
-                  }`}
+                  className={`py-4 px-4 font-semibold ${getValueColor(
+                    indicator.yoy
+                  )}`}
                 >
-                  {formatPercent(item.yoy)}
+                  {isNaN(indicator.yoy)
+                    ? "N/A"
+                    : `${indicator.yoy.toFixed(2)}%`}
                 </td>
                 <td
-                  className={`px-4 py-4 text-right ${
-                    item.mom > 0 ? "text-green-400" : "text-red-400"
-                  }`}
+                  className={`py-4 px-4 font-semibold ${getValueColor(
+                    indicator.mom
+                  )}`}
                 >
-                  {formatPercent(item.mom)}
+                  {isNaN(indicator.mom)
+                    ? "N/A"
+                    : `${indicator.mom.toFixed(2)}%`}
                 </td>
-                <td className="px-4 py-4 text-right">
-                  {formatNumber(item.accel, 2)}
+                <td className="py-4 px-4">
+                  {isNaN(indicator.accel) ? "N/A" : indicator.accel.toFixed(2)}
                 </td>
-                <td className="px-4 py-4">
+                <td className="py-4 px-4">
                   <a
-                    href={item.fred_url}
+                    href={indicator.fred_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:underline"
+                    className="font-medium text-blue-400 hover:underline"
                   >
                     Enlace
                   </a>
