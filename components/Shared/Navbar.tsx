@@ -25,12 +25,10 @@ export default function Navbar() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [openSubDropdown, setOpenSubDropdown] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  // Estado para almacenar los portafolios, inicializado como un array vacío
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
 
   const navbarRef = useRef<HTMLDivElement>(null);
 
-  // Carga los portafolios desde localStorage al cargar el componente
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedPortfolios = localStorage.getItem("portfolios");
@@ -43,15 +41,15 @@ export default function Navbar() {
             "Error al parsear los portafolios de localStorage:",
             error
           );
-          setPortfolios([]); // Reinicia si hay un error de parseo
+          setPortfolios([]);
         }
       }
     }
-  }, []); // Se ejecuta solo una vez al montar el componente
+  }, []);
 
   const toggleDropdown = (dropdownName: string) => {
     setOpenDropdown(openDropdown === dropdownName ? null : dropdownName);
-    setOpenSubDropdown(null); // Cierra cualquier submenú al cambiar de menú principal
+    setOpenSubDropdown(null);
     if (isMobileMenuOpen) {
       setIsMobileMenuOpen(false);
     }
@@ -78,7 +76,6 @@ export default function Navbar() {
         closeAllMenus();
       }
     };
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
@@ -93,19 +90,15 @@ export default function Navbar() {
     };
   }, [isMobileMenuOpen, isFormOpen]);
 
-  // Maneja la apertura del formulario
   const handleOpenForm = () => {
     closeAllMenus();
     setIsFormOpen(true);
   };
 
-  // Callback llamado cuando un nuevo portafolio es añadido por el formulario
   const handlePortfolioAdded = (newPortfolio: Portfolio) => {
     setPortfolios((prevPortfolios) => {
-      // Evitar añadir duplicados
       if (!prevPortfolios.some((p) => p.slug === newPortfolio.slug)) {
         const updatedPortfolios = [...prevPortfolios, newPortfolio];
-        // Guarda la lista actualizada de portafolios en localStorage
         localStorage.setItem("portfolios", JSON.stringify(updatedPortfolios));
         return updatedPortfolios;
       }
@@ -113,7 +106,6 @@ export default function Navbar() {
     });
   };
 
-  // Maneja el cierre del formulario
   const handleCloseForm = () => {
     setIsFormOpen(false);
   };
@@ -296,7 +288,7 @@ export default function Navbar() {
                 )}
               </button>
               {openDropdown === "herramientas" && (
-                <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
+                <div className="absolute top-full right-0 mt-2 w-56 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                   <div className="relative group">
                     <button
                       className="flex justify-between items-center px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200 w-full text-left"
@@ -380,6 +372,13 @@ export default function Navbar() {
                   >
                     Stock Screener
                   </Link>
+                  <Link
+                    href="/recesion"
+                    className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                    onClick={closeAllMenus}
+                  >
+                    Recession Monitor
+                  </Link>
                 </div>
               )}
             </div>
@@ -398,7 +397,7 @@ export default function Navbar() {
                 )}
               </button>
               {openDropdown === "portafolios" && (
-                <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
+                <div className="absolute top-full right-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                   <button
                     onClick={handleOpenForm}
                     className="flex items-center w-full px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
@@ -406,10 +405,9 @@ export default function Navbar() {
                     <PlusCircleIcon className="h-5 w-5 mr-2" />
                     Agregar
                   </button>
-                  {portfolios.length > 0 && ( // Solo muestra la línea si hay portafolios
+                  {portfolios.length > 0 && (
                     <hr className="border-gray-700 my-1" />
                   )}
-                  {/* Renderizado dinámico de portafolios */}
                   {portfolios.map((portfolio) => (
                     <Link
                       key={portfolio.slug}
@@ -465,6 +463,7 @@ export default function Navbar() {
               Tenesaca Jose
             </Link>
             <hr className="border-gray-700 my-2" />
+
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Estrategias:
             </span>
@@ -490,6 +489,7 @@ export default function Navbar() {
               Estrategia ES
             </Link>
             <hr className="border-gray-700 my-2" />
+
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Informes:
             </span>
@@ -515,6 +515,7 @@ export default function Navbar() {
               Informes ES
             </Link>
             <hr className="border-gray-700 my-2" />
+
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Herramientas:
             </span>
@@ -559,6 +560,13 @@ export default function Navbar() {
               Stock Screener
             </Link>
             <Link
+              href="/recesion"
+              className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+              onClick={closeAllMenus}
+            >
+              Recession Monitor
+            </Link>
+            <Link
               href="/sentimiento-macro/NQ"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
@@ -573,6 +581,7 @@ export default function Navbar() {
               Sesgo Diario - S&P 500
             </Link>
             <hr className="border-gray-700 my-2" />
+
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Portafolios:
             </span>
@@ -583,13 +592,10 @@ export default function Navbar() {
               <PlusCircleIcon className="h-5 w-5 mr-2" />
               Agregar
             </button>
-            {portfolios.length > 0 && ( // Solo muestra la línea si hay portafolios
-              <hr className="border-gray-700 my-2" />
-            )}
-            {/* Renderizado dinámico de portafolios en móvil */}
+            {portfolios.length > 0 && <hr className="border-gray-700 my-2" />}
             {portfolios.map((portfolio) => (
               <Link
-                key={`mobile-${portfolio.slug}`} // Clave única para el menú móvil
+                key={`mobile-${portfolio.slug}`}
                 href={`/portafolio/${portfolio.slug}`}
                 className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
                 onClick={closeAllMenus}
@@ -600,7 +606,6 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
-      {/* Pasa el callback `onPortfolioAdded` al formulario */}
       {isFormOpen && (
         <AddPortfolioForm
           onClose={handleCloseForm}
