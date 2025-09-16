@@ -1,13 +1,5 @@
 // lib/data.ts
 import { ApiAssetItem } from '@/types/api';
-import { notFound } from "next/navigation";
-
-// Definimos la interfaz para los datos que se obtienen de los scrapeos
-interface ScrapedData {
-  headers: string[];
-  metrics: { [key: string]: (number | string)[] };
-  error?: string;
-}
 
 /**
  * Función centralizada para obtener todos los datos de un ticker.
@@ -36,26 +28,6 @@ export async function fetchAllStocksData(ticker: string): Promise<ApiAssetItem |
 
     const assetData = stockData.data[0] as ApiAssetItem;
 
-    // 2. Llamadas a las APIs de scraping para datos más específicos (como tablas)
-    // Estas llamadas no son estrictamente necesarias si ya obtienes los datos con yahoo-finance2,
-    // pero se incluyen para mostrar cómo centralizar todas las APIs.
-    const [incomeStatementRes, balanceSheetRes, cashFlowRes] = await Promise.allSettled([
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/income-statement?ticker=${normalizedTicker}`),
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/balance-sheet?ticker=${normalizedTicker}`),
-      fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/api/free-cash-flow?ticker=${normalizedTicker}`),
-    ]);
-
-    // Procesar los resultados de los scrapeos
-    if (incomeStatementRes.status === 'fulfilled' && incomeStatementRes.value.ok) {
-      const data: ScrapedData = await incomeStatementRes.value.json();
-      // Integrar datos del scrapeo si es necesario, aquí es solo un ejemplo
-    } else {
-      console.warn(`No se pudo obtener el Income Statement para ${normalizedTicker}`);
-    }
-
-    // De manera similar, procesar y consolidar los datos de Balance Sheet y Cash Flow.
-
-    // 3. Devolver el objeto final consolidado
     return assetData;
 
   } catch (error) {

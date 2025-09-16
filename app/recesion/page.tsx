@@ -164,7 +164,7 @@ export default function RecessionDashboardPage() {
                 )}
                 {!geminiLoading && !geminiBrief && !geminiError && (
                   <p className="text-gray-500">
-                    Haz clic en "Generar Resumen con IA" en la barra lateral
+                    Haz clic en &quot;Generar Resumen con IA&quot; en la barra lateral
                     para obtener un análisis.
                   </p>
                 )}

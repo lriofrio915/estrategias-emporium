@@ -18,7 +18,6 @@ interface Props {
 }
 
 const ValuationMultiplesTable: React.FC<Props> = ({
-  ticker,
   currentPrice,
   data,
 }) => {

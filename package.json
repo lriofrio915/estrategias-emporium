@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google-cloud/translate": "^9.2.0",
+    "@google/generative-ai": "^0.24.1",
     "@heroicons/react": "^2.2.0",
     "axios": "^1.11.0",
     "chart.js": "^4.5.0",
