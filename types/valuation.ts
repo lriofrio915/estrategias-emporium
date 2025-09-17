@@ -2,7 +2,9 @@
 
 import { ApiAssetItem } from "./api";
 
-// Para el componente ProjectionsTable
+// (Las demás interfaces no cambian)
+// ...
+
 export interface ProjectionsData {
   salesGrowth: number | string;
   ebitMargin: number | string;
@@ -10,7 +12,6 @@ export interface ProjectionsData {
   sharesIncrease: number | string;
 }
 
-// Para el componente ValuationMultiplesTable
 export interface MultiplesData {
   PER: { ltm: number | string; target: number };
   EV_EBITDA: { ltm: number | string; target: number };
@@ -18,7 +19,6 @@ export interface MultiplesData {
   EV_FCF: { ltm: number | string; target: number };
 }
 
-// Tipos para los resultados de valoración intrínseca
 export interface ValuationResult {
   per_ex_cash: number;
   ev_fcf: number;
@@ -33,7 +33,6 @@ export interface CagrResult {
   ev_ebit: number;
 }
 
-// Estructura de datos principal para el ValuationDashboard
 export interface ValuationDashboardData {
   projectionsData: ProjectionsData | null;
   multiplesData: MultiplesData | null;
@@ -67,11 +66,15 @@ export function processApiDataForDashboard(
   };
 
   const getMostRecentValue = (history: any[] | undefined, key: string) => {
-    if (!history || history.length === 0) return "N/A";
-    return getRawValue(history[0][key]);
+    const statements =
+      history?.[0]?.incomeStatementHistory ||
+      history?.[0]?.cashflowStatements ||
+      history ||
+      [];
+    if (!Array.isArray(statements) || statements.length === 0) return "N/A";
+    return getRawValue(statements[0][key]);
   };
 
-  // --- Current Price ---
   const currentPrice =
     typeof getRawValue(price?.regularMarketPrice) === "number"
       ? (getRawValue(price?.regularMarketPrice) as number)
@@ -79,19 +82,83 @@ export function processApiDataForDashboard(
 
   // --- Multiples Data ---
   const enterpriseValue = getRawValue(defaultKeyStatistics?.enterpriseValue);
-  const trailingPE = getRawValue(defaultKeyStatistics?.trailingPE);
+  const trailingEps = getRawValue(defaultKeyStatistics?.trailingEps);
   const ltmEbitda = getRawValue(financialData?.ebitda);
-  const ltmEbit = getMostRecentValue(
+
+  // ***** INICIO DE LA CORRECCIÓN MEJORADA PARA FCF y EBIT *****
+
+  // 1. Lógica para Free Cash Flow (FCF)
+  let ltmFcf = getRawValue(financialData?.freeCashflow);
+  if (ltmFcf === "N/A" || ltmFcf === 0) {
+    ltmFcf = getMostRecentValue(
+      cashflowStatementHistory?.cashflowStatements,
+      "freeCashFlow"
+    );
+  }
+
+  // 2. Lógica para EBIT con múltiples fallbacks
+  let ltmEbit = getMostRecentValue(
     incomeStatementHistory?.incomeStatementHistory,
     "ebit"
   );
-  const ltmFcf = getMostRecentValue(
-    cashflowStatementHistory?.cashflowStatements,
-    "freeCashFlow"
-  );
+
+  // Fallback 1: Calcular desde EBITDA - Depreciación
+  if (ltmEbit === 0 || ltmEbit === "N/A") {
+    const ltmDepreciation = getMostRecentValue(
+      cashflowStatementHistory?.cashflowStatements,
+      "depreciation"
+    );
+    if (typeof ltmEbitda === "number" && typeof ltmDepreciation === "number") {
+      ltmEbit = ltmEbitda - ltmDepreciation;
+    }
+  }
+
+  // Fallback 2 (NUEVO Y MÁS FIABLE): Calcular desde Margen Operativo
+  if (ltmEbit === 0 || ltmEbit === "N/A") {
+    const totalRevenue = getRawValue(financialData?.totalRevenue);
+    const operatingMargins = getRawValue(financialData?.operatingMargins);
+    if (
+      typeof totalRevenue === "number" &&
+      typeof operatingMargins === "number"
+    ) {
+      // Fórmula: EBIT = Ingresos Totales * Margen Operativo
+      ltmEbit = totalRevenue * operatingMargins;
+    }
+  }
+
+  // 3. Lógica para PER Trailing (se mantiene)
+  let calculatedTrailingPE: number | string = "N/A";
+  if (
+    typeof currentPrice === "number" &&
+    typeof trailingEps === "number" &&
+    trailingEps > 0
+  ) {
+    calculatedTrailingPE = currentPrice / trailingEps;
+  } else {
+    const preCalculatedPE = getRawValue(defaultKeyStatistics?.trailingPE);
+    if (typeof preCalculatedPE === "number" && preCalculatedPE > 0) {
+      calculatedTrailingPE = preCalculatedPE;
+    }
+  }
+  // ***** FIN DE LA CORRECCIÓN *****
+
+  console.log("3. Métricas CLAVE dentro de processApiDataForDashboard:", {
+    ticker: apiAssetItem.ticker,
+    currentPrice,
+    trailingEps,
+    calculatedTrailingPE,
+    enterpriseValue,
+    ltmEbitda,
+    "financialData.totalRevenue": getRawValue(financialData?.totalRevenue),
+    "financialData.operatingMargins": getRawValue(
+      financialData?.operatingMargins
+    ),
+    ltmEbit,
+    ltmFcf,
+  });
 
   const multiplesData: MultiplesData = {
-    PER: { ltm: trailingPE, target: 20.0 },
+    PER: { ltm: calculatedTrailingPE, target: 0.0 },
     EV_EBITDA: {
       ltm:
         typeof enterpriseValue === "number" &&
@@ -99,7 +166,7 @@ export function processApiDataForDashboard(
         ltmEbitda !== 0
           ? enterpriseValue / ltmEbitda
           : "N/A",
-      target: 16.0,
+      target: 0.0,
     },
     EV_EBIT: {
       ltm:
@@ -108,7 +175,7 @@ export function processApiDataForDashboard(
         ltmEbit !== 0
           ? enterpriseValue / ltmEbit
           : "N/A",
-      target: 16.0,
+      target: 0.0,
     },
     EV_FCF: {
       ltm:
@@ -117,19 +184,17 @@ export function processApiDataForDashboard(
         ltmFcf !== 0
           ? enterpriseValue / ltmFcf
           : "N/A",
-      target: 20.0,
+      target: 0.0,
     },
   };
 
-  // --- Projections Data (Placeholder) ---
+  // ... (El resto de la función no cambia)
   const projectionsData: ProjectionsData | null = {
     salesGrowth: "12%",
     ebitMargin: "28%",
     taxRate: "21%",
     sharesIncrease: "0.05%",
   };
-
-  // --- Intrinsic Value Data (Hardcoded for now) ---
   const valuationResults = {
     "2022e": {
       per_ex_cash: 221.71,

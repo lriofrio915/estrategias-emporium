@@ -8,15 +8,16 @@ import {
 } from "@/types/valuation";
 import CompanyOverview from "../CompanyOverview/CompanyOverview";
 import MarketAnalysis from "../MarketAnalysis/MarketAnalysis";
-import PerformanceChart from "../PerformanceChart/PerformanceChart";
-import DividendsSection from "../DividendsSection/DividendsSection";
-import FinancialHealth from "../FinancialHealth/FinancialHealth";
-import Profitability from "../Profitability/Profitability";
-import AnalystPerspectives from "../AnalystPerspectives/AnalystPerspectives";
-import Conclusion from "../Conclusion/Conclusion";
+// ... (otros imports)
+import ValuationDashboard from "../ValuationDashboard/ValuationDashboard";
 import LoadingSpinner from "../Shared/LoadingSpinner";
 import ErrorDisplay from "../Shared/ErrorDisplay";
-import ValuationDashboard from "../ValuationDashboard/ValuationDashboard";
+import Conclusion from "../Conclusion/Conclusion";
+import AnalystPerspectives from "../AnalystPerspectives/AnalystPerspectives";
+import Profitability from "../Profitability/Profitability";
+import FinancialHealth from "../FinancialHealth/FinancialHealth";
+import DividendsSection from "../DividendsSection/DividendsSection";
+import PerformanceChart from "../PerformanceChart/PerformanceChart";
 
 interface ReportPageProps {
   ticker: string;
@@ -42,6 +43,9 @@ export default function ReportPage({ ticker }: ReportPageProps) {
 
       const apiResponse = await response.json();
 
+      // *** AÑADIMOS EL CONSOLE.LOG AQUÍ ***
+      console.log("1. Respuesta CRUDA de la API:", apiResponse);
+
       if (apiResponse.success === false) {
         setError(apiResponse.message || "Error desconocido al obtener datos.");
         return;
@@ -51,9 +55,15 @@ export default function ReportPage({ ticker }: ReportPageProps) {
         const rawAssetData: ApiAssetItem = apiResponse.assetData[0];
         setAssetData(rawAssetData);
 
+        // *** AÑADIMOS EL CONSOLE.LOG AQUÍ ***
+        console.log("2. Datos SIN PROCESAR para el Dashboard:", rawAssetData);
+
         // Procesamos los datos crudos para el ValuationDashboard
         const processedData = processApiDataForDashboard(rawAssetData);
         setValuationData(processedData);
+
+        // *** AÑADIMOS EL CONSOLE.LOG AQUÍ ***
+        console.log("4. Datos PROCESADOS para el Dashboard:", processedData);
       } else {
         setError(`No se encontraron datos para ${ticker}.`);
       }
