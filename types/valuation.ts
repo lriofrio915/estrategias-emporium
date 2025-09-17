@@ -1,10 +1,12 @@
 // types/valuation.ts
 
-import { ApiAssetItem } from "./api";
+import {
+  ApiAssetItem,
+  RawYahooFinanceIncomeStatementItem,
+  RawYahooFinanceBalanceSheetItem,
+} from "./api";
 
-// (Las demás interfaces no cambian)
-// ...
-
+// (Interfaces no cambian)
 export interface ProjectionsData {
   salesGrowth: number | string;
   ebitMargin: number | string;
@@ -42,12 +44,77 @@ export interface ValuationDashboardData {
   cagrResults: CagrResult;
 }
 
-// Helper para extraer y procesar los datos crudos de la API
+const getRawValueHelper = (value: any): number | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "object" && "raw" in value) {
+    return value.raw;
+  }
+  return typeof value === "number" ? value : null;
+};
+
+const calculateAverageSalesGrowth = (
+  history: RawYahooFinanceIncomeStatementItem[]
+): number | string => {
+  if (!history || history.length < 2) return "N/A";
+  const growthRates: number[] = [];
+  // Comparamos el dato TTM (índice 0) con el del año fiscal anterior (índice 1)
+  const currentRevenue = getRawValueHelper(history[0]?.totalRevenue);
+  const previousRevenue = getRawValueHelper(history[1]?.totalRevenue);
+  if (currentRevenue && previousRevenue && previousRevenue !== 0) {
+    const growth = ((currentRevenue - previousRevenue) / previousRevenue) * 100;
+    return parseFloat(growth.toFixed(2));
+  }
+  return "N/A";
+};
+
+const calculateAverageTaxRate = (
+  history: RawYahooFinanceIncomeStatementItem[]
+): number | string => {
+  if (!history || history.length === 0) return "N/A";
+  const rates: number[] = [];
+  for (const item of history) {
+    const tax = getRawValueHelper(item.incomeTaxExpense);
+    const netIncome = getRawValueHelper(item.netIncome);
+    if (tax !== null && netIncome !== null && netIncome + tax !== 0) {
+      const preTaxIncome = netIncome + tax;
+      if (preTaxIncome > 0) {
+        rates.push((tax / preTaxIncome) * 100);
+      }
+    }
+  }
+  if (rates.length === 0) return "N/A";
+  const averageRate = rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
+  return parseFloat(averageRate.toFixed(2));
+};
+
+const calculateLastSharesIncrease = (
+  incomeHistory: RawYahooFinanceIncomeStatementItem[],
+  balanceHistory: RawYahooFinanceBalanceSheetItem[],
+  defaultKeyStatistics: ApiAssetItem["data"]["defaultKeyStatistics"]
+): number | string => {
+  // Comparamos TTM (índice 0) vs el año anterior (índice 1)
+  const currentShares =
+    getRawValueHelper(incomeHistory[0]?.basicAverageShares) ||
+    getRawValueHelper(incomeHistory[0]?.dilutedAverageShares) ||
+    getRawValueHelper(balanceHistory[0]?.shareIssued) ||
+    getRawValueHelper(defaultKeyStatistics?.sharesOutstanding);
+
+  const previousShares =
+    getRawValueHelper(incomeHistory[1]?.basicAverageShares) ||
+    getRawValueHelper(incomeHistory[1]?.dilutedAverageShares) ||
+    getRawValueHelper(balanceHistory[1]?.shareIssued);
+
+  if (currentShares && previousShares && previousShares !== 0) {
+    const increase = ((currentShares - previousShares) / previousShares) * 100;
+    return parseFloat(increase.toFixed(2));
+  }
+  return "N/A";
+};
+
 export function processApiDataForDashboard(
   apiAssetItem: ApiAssetItem | null
 ): ValuationDashboardData | null {
   if (!apiAssetItem) return null;
-
   const { data } = apiAssetItem;
   const {
     price,
@@ -55,6 +122,7 @@ export function processApiDataForDashboard(
     financialData,
     incomeStatementHistory,
     cashflowStatementHistory,
+    balanceSheetHistory,
   } = data;
 
   const getRawValue = (value: any): number | string => {
@@ -64,7 +132,6 @@ export function processApiDataForDashboard(
     }
     return typeof value === "number" ? value : "N/A";
   };
-
   const getMostRecentValue = (history: any[] | undefined, key: string) => {
     const statements =
       history?.[0]?.incomeStatementHistory ||
@@ -79,15 +146,9 @@ export function processApiDataForDashboard(
     typeof getRawValue(price?.regularMarketPrice) === "number"
       ? (getRawValue(price?.regularMarketPrice) as number)
       : null;
-
-  // --- Multiples Data ---
   const enterpriseValue = getRawValue(defaultKeyStatistics?.enterpriseValue);
   const trailingEps = getRawValue(defaultKeyStatistics?.trailingEps);
   const ltmEbitda = getRawValue(financialData?.ebitda);
-
-  // ***** INICIO DE LA CORRECCIÓN MEJORADA PARA FCF y EBIT *****
-
-  // 1. Lógica para Free Cash Flow (FCF)
   let ltmFcf = getRawValue(financialData?.freeCashflow);
   if (ltmFcf === "N/A" || ltmFcf === 0) {
     ltmFcf = getMostRecentValue(
@@ -95,25 +156,10 @@ export function processApiDataForDashboard(
       "freeCashFlow"
     );
   }
-
-  // 2. Lógica para EBIT con múltiples fallbacks
   let ltmEbit = getMostRecentValue(
     incomeStatementHistory?.incomeStatementHistory,
     "ebit"
   );
-
-  // Fallback 1: Calcular desde EBITDA - Depreciación
-  if (ltmEbit === 0 || ltmEbit === "N/A") {
-    const ltmDepreciation = getMostRecentValue(
-      cashflowStatementHistory?.cashflowStatements,
-      "depreciation"
-    );
-    if (typeof ltmEbitda === "number" && typeof ltmDepreciation === "number") {
-      ltmEbit = ltmEbitda - ltmDepreciation;
-    }
-  }
-
-  // Fallback 2 (NUEVO Y MÁS FIABLE): Calcular desde Margen Operativo
   if (ltmEbit === 0 || ltmEbit === "N/A") {
     const totalRevenue = getRawValue(financialData?.totalRevenue);
     const operatingMargins = getRawValue(financialData?.operatingMargins);
@@ -121,12 +167,9 @@ export function processApiDataForDashboard(
       typeof totalRevenue === "number" &&
       typeof operatingMargins === "number"
     ) {
-      // Fórmula: EBIT = Ingresos Totales * Margen Operativo
       ltmEbit = totalRevenue * operatingMargins;
     }
   }
-
-  // 3. Lógica para PER Trailing (se mantiene)
   let calculatedTrailingPE: number | string = "N/A";
   if (
     typeof currentPrice === "number" &&
@@ -140,23 +183,6 @@ export function processApiDataForDashboard(
       calculatedTrailingPE = preCalculatedPE;
     }
   }
-  // ***** FIN DE LA CORRECCIÓN *****
-
-  console.log("3. Métricas CLAVE dentro de processApiDataForDashboard:", {
-    ticker: apiAssetItem.ticker,
-    currentPrice,
-    trailingEps,
-    calculatedTrailingPE,
-    enterpriseValue,
-    ltmEbitda,
-    "financialData.totalRevenue": getRawValue(financialData?.totalRevenue),
-    "financialData.operatingMargins": getRawValue(
-      financialData?.operatingMargins
-    ),
-    ltmEbit,
-    ltmFcf,
-  });
-
   const multiplesData: MultiplesData = {
     PER: { ltm: calculatedTrailingPE, target: 0.0 },
     EV_EBITDA: {
@@ -187,14 +213,25 @@ export function processApiDataForDashboard(
       target: 0.0,
     },
   };
-
-  // ... (El resto de la función no cambia)
-  const projectionsData: ProjectionsData | null = {
-    salesGrowth: "12%",
-    ebitMargin: "28%",
-    taxRate: "21%",
-    sharesIncrease: "0.05%",
+  const operatingMargins = getRawValue(financialData?.operatingMargins);
+  const projectionsData: ProjectionsData = {
+    salesGrowth: calculateAverageSalesGrowth(
+      incomeStatementHistory?.incomeStatements || []
+    ),
+    ebitMargin:
+      typeof operatingMargins === "number"
+        ? parseFloat((operatingMargins * 100).toFixed(2))
+        : "N/A",
+    taxRate: calculateAverageTaxRate(
+      incomeStatementHistory?.incomeStatements || []
+    ),
+    sharesIncrease: calculateLastSharesIncrease(
+      incomeStatementHistory?.incomeStatements || [],
+      balanceSheetHistory?.balanceSheetStatements || [],
+      defaultKeyStatistics
+    ),
   };
+
   const valuationResults = {
     "2022e": {
       per_ex_cash: 221.71,

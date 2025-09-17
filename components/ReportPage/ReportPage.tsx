@@ -1,23 +1,22 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ApiAssetItem } from "@/types/api";
+import { ApiAssetItem, RawYahooFinanceIncomeStatementItem } from "@/types/api";
 import {
   ValuationDashboardData,
   processApiDataForDashboard,
 } from "@/types/valuation";
 import CompanyOverview from "../CompanyOverview/CompanyOverview";
 import MarketAnalysis from "../MarketAnalysis/MarketAnalysis";
-// ... (otros imports)
-import ValuationDashboard from "../ValuationDashboard/ValuationDashboard";
+import PerformanceChart from "../PerformanceChart/PerformanceChart";
+import DividendsSection from "../DividendsSection/DividendsSection";
+import FinancialHealth from "../FinancialHealth/FinancialHealth";
+import Profitability from "../Profitability/Profitability";
+import AnalystPerspectives from "../AnalystPerspectives/AnalystPerspectives";
+import Conclusion from "../Conclusion/Conclusion";
 import LoadingSpinner from "../Shared/LoadingSpinner";
 import ErrorDisplay from "../Shared/ErrorDisplay";
-import Conclusion from "../Conclusion/Conclusion";
-import AnalystPerspectives from "../AnalystPerspectives/AnalystPerspectives";
-import Profitability from "../Profitability/Profitability";
-import FinancialHealth from "../FinancialHealth/FinancialHealth";
-import DividendsSection from "../DividendsSection/DividendsSection";
-import PerformanceChart from "../PerformanceChart/PerformanceChart";
+import ValuationDashboard from "../ValuationDashboard/ValuationDashboard";
 
 interface ReportPageProps {
   ticker: string;
@@ -34,39 +33,88 @@ export default function ReportPage({ ticker }: ReportPageProps) {
     setLoading(true);
     setError(null);
     try {
-      const apiUrl = `/api/${ticker}`;
-      const response = await fetch(apiUrl);
+      const mainApiUrl = `/api/${ticker}`;
+      const mainResponse = await fetch(mainApiUrl);
+      if (!mainResponse.ok)
+        throw new Error(`Fallo al obtener los datos principales de ${ticker}.`);
 
-      if (!response.ok) {
-        throw new Error(`Fallo al obtener los datos de ${ticker}.`);
-      }
+      const mainApiResponse = await mainResponse.json();
+      if (mainApiResponse.success === false)
+        throw new Error(
+          mainApiResponse.message || "Error desconocido al obtener datos."
+        );
+      if (!mainApiResponse.assetData || mainApiResponse.assetData.length === 0)
+        throw new Error(`No se encontraron datos para ${ticker}.`);
 
-      const apiResponse = await response.json();
+      const rawAssetData: ApiAssetItem = mainApiResponse.assetData[0];
 
-      // *** AÑADIMOS EL CONSOLE.LOG AQUÍ ***
-      console.log("1. Respuesta CRUDA de la API:", apiResponse);
+      const incomeStatementScraperUrl = `/api/income-statement?ticker=${ticker}`;
+      const incomeScraperResponse = await fetch(incomeStatementScraperUrl);
 
-      if (apiResponse.success === false) {
-        setError(apiResponse.message || "Error desconocido al obtener datos.");
-        return;
-      }
+      if (incomeScraperResponse.ok) {
+        const scrapedIncomeData = await incomeScraperResponse.json();
 
-      if (apiResponse.assetData && apiResponse.assetData.length > 0) {
-        const rawAssetData: ApiAssetItem = apiResponse.assetData[0];
-        setAssetData(rawAssetData);
+        console.log(
+          "DATOS CRUDOS DEL SCRAPER (/api/income-statement):",
+          scrapedIncomeData
+        );
 
-        // *** AÑADIMOS EL CONSOLE.LOG AQUÍ ***
-        console.log("2. Datos SIN PROCESAR para el Dashboard:", rawAssetData);
+        if (scrapedIncomeData && scrapedIncomeData.metrics) {
+          console.log(
+            "Éxito: Datos del Income Statement obtenidos vía scraping. Fusionando..."
+          );
 
-        // Procesamos los datos crudos para el ValuationDashboard
-        const processedData = processApiDataForDashboard(rawAssetData);
-        setValuationData(processedData);
+          const transformedHistory: RawYahooFinanceIncomeStatementItem[] = [];
+          // ***** INICIO DE LA CORRECCIÓN *****
+          // Se elimina .slice(1) para procesar TODOS los datos del scraper, incluyendo TTM.
+          const headers = scrapedIncomeData.headers;
+          // ***** FIN DE LA CORRECCIÓN *****
 
-        // *** AÑADIMOS EL CONSOLE.LOG AQUÍ ***
-        console.log("4. Datos PROCESADOS para el Dashboard:", processedData);
+          for (let i = 0; i < headers.length; i++) {
+            const item: RawYahooFinanceIncomeStatementItem = {
+              maxAge: 1,
+              endDate: { fmt: headers[i], raw: 0 },
+              basicAverageShares: {
+                raw: scrapedIncomeData.metrics.basicAverageShares?.[i] || 0,
+              },
+              dilutedAverageShares: {
+                raw: scrapedIncomeData.metrics.dilutedAverageShares?.[i] || 0,
+              },
+              totalRevenue: {
+                raw: scrapedIncomeData.metrics.totalRevenue?.[i] || 0,
+              },
+              ebit: { raw: scrapedIncomeData.metrics.ebit?.[i] || 0 },
+              netIncome: { raw: scrapedIncomeData.metrics.netIncome?.[i] || 0 },
+              incomeTaxExpense: {
+                raw:
+                  scrapedIncomeData.metrics.taxEffectOfUnusualItems?.[i] || 0,
+              },
+              incomeBeforeTax: {
+                raw: scrapedIncomeData.metrics.pretaxIncome?.[i] || 0,
+              },
+            };
+            transformedHistory.push(item);
+          }
+
+          if (rawAssetData.data.incomeStatementHistory) {
+            rawAssetData.data.incomeStatementHistory.incomeStatements =
+              transformedHistory;
+          } else {
+            rawAssetData.data.incomeStatementHistory = {
+              incomeStatements: transformedHistory,
+              maxAge: 1,
+            };
+          }
+        }
       } else {
-        setError(`No se encontraron datos para ${ticker}.`);
+        console.warn(
+          "La API de scraping del Income Statement falló. Se usarán los datos por defecto."
+        );
       }
+
+      setAssetData(rawAssetData);
+      const processedData = processApiDataForDashboard(rawAssetData);
+      setValuationData(processedData);
     } catch (err: unknown) {
       console.error(`Error al obtener datos de ${ticker}:`, err);
       setError(
@@ -83,14 +131,13 @@ export default function ReportPage({ ticker }: ReportPageProps) {
     fetchAssetData();
   }, [fetchAssetData]);
 
+  // ... (El resto del componente es idéntico)
   if (loading) {
     return <LoadingSpinner ticker={ticker} />;
   }
-
   if (error) {
     return <ErrorDisplay error={error} />;
   }
-
   if (!assetData) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -115,7 +162,6 @@ export default function ReportPage({ ticker }: ReportPageProps) {
           </p>
         </header>
 
-        {/* Pasamos los datos procesados al dashboard */}
         <ValuationDashboard ticker={ticker} data={valuationData} />
         <CompanyOverview assetData={assetData} />
         <MarketAnalysis assetData={assetData} />
