@@ -1,33 +1,20 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import Tooltip from "../Shared/Tooltips";
-
-// Interfaz para los datos que este componente espera recibir
-export interface MultiplesData {
-  trailingPE?: number;
-  enterpriseValue?: number;
-  ebitda?: number;
-  ebit?: number;
-  freeCashFlow?: number;
-}
+import { MultiplesData } from "@/types/valuation"; // Importamos el nuevo tipo
 
 interface Props {
-  ticker: string;
   currentPrice: number;
-  data: MultiplesData | null; // Recibe los datos como prop
+  data: MultiplesData | null; // El componente ahora recibe los datos pre-calculados
 }
 
 const ValuationMultiplesTable: React.FC<Props> = ({
   currentPrice,
   data,
 }) => {
-  // Los objetivos ahora son parte del estado para que el usuario pueda modificarlos
-  const [targets, setTargets] = useState({
-    PER: 20,
-    EV_EBITDA: 16,
-    EV_EBIT: 18,
-    EV_FCF: 22,
-  });
+  const [valuationMetrics, setValuationMetrics] =
+    useState<MultiplesData | null>(data);
+  const [loading, setLoading] = useState<boolean>(!data);
 
   const metricDescriptions: { [key: string]: string } = {
     PER: "Mide cuánto están los inversores dispuestos a pagar por cada dólar de ganancias de una empresa. Se calcula dividiendo el precio de la acción entre el EPS.",
@@ -39,51 +26,41 @@ const ValuationMultiplesTable: React.FC<Props> = ({
       "Compara el valor total de la empresa (Enterprise Value) con el flujo de caja libre. Es útil porque se enfoca en la caja real que la empresa produce.",
   };
 
-  // Calculamos los múltiplos LTM (Last Twelve Months) basados en los datos recibidos
-  const ltmMetrics = useMemo(() => {
-    if (!data) {
-      return { PER: 0, EV_EBITDA: 0, EV_EBIT: 0, EV_FCF: 0 };
-    }
-    const {
-      trailingPE = 0,
-      enterpriseValue = 0,
-      ebitda = 0,
-      ebit = 0,
-      freeCashFlow = 0,
-    } = data;
-
-    return {
-      PER: trailingPE,
-      EV_EBITDA: ebitda && ebitda !== 0 ? enterpriseValue / ebitda : 0,
-      EV_EBIT: ebit && ebit !== 0 ? enterpriseValue / ebit : 0,
-      EV_FCF:
-        freeCashFlow && freeCashFlow !== 0 ? enterpriseValue / freeCashFlow : 0,
-    };
+  useEffect(() => {
+    setValuationMetrics(data);
+    setLoading(!data);
   }, [data]);
 
   const handleTargetChange = (key: string, value: string) => {
-    setTargets((prevTargets) => ({
-      ...prevTargets,
-      [key]: parseFloat(value) || 0,
-    }));
+    if (!valuationMetrics) return;
+
+    setValuationMetrics((prevMetrics) => {
+      if (!prevMetrics) return null;
+      const keyTyped = key as keyof MultiplesData;
+      return {
+        ...prevMetrics,
+        [keyTyped]: {
+          ...prevMetrics[keyTyped],
+          target: parseFloat(value) || 0,
+        },
+      };
+    });
   };
 
-  if (!data) {
+  if (loading) {
     return (
-      <div className="bg-white p-4 rounded-lg shadow-lg border border-gray-200 animate-pulse">
-        <div className="flex justify-between items-center mb-4">
-          <div className="h-6 w-1/3 bg-gray-200 rounded"></div>
-          <div className="text-right">
-            <div className="h-4 w-24 bg-gray-200 rounded mb-1"></div>
-            <div className="h-8 w-32 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-        <div className="space-y-4 mt-4">
-          <div className="h-6 bg-gray-200 rounded"></div>
-          <div className="h-6 bg-gray-200 rounded"></div>
-          <div className="h-6 bg-gray-200 rounded"></div>
-          <div className="h-6 bg-gray-200 rounded"></div>
-        </div>
+      <div className="bg-white text-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 flex items-center justify-center h-full">
+        <p className="text-gray-500">Cargando múltiplos de valoración...</p>
+      </div>
+    );
+  }
+
+  if (!valuationMetrics) {
+    return (
+      <div className="bg-white text-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 flex items-center justify-center h-full">
+        <p className="text-red-500">
+          No se pudieron cargar los múltiplos de valoración.
+        </p>
       </div>
     );
   }
@@ -108,7 +85,7 @@ const ValuationMultiplesTable: React.FC<Props> = ({
           </tr>
         </thead>
         <tbody>
-          {Object.entries(ltmMetrics).map(([key, value]) => (
+          {Object.entries(valuationMetrics).map(([key, value]) => (
             <tr key={key} className="border-b border-gray-200">
               <td className="py-2 font-semibold uppercase">
                 <Tooltip
@@ -117,13 +94,18 @@ const ValuationMultiplesTable: React.FC<Props> = ({
                   {key.replace("_", " / ")}
                 </Tooltip>
               </td>
-              <td className="py-2 text-center">{value?.toFixed(2) || "-"}</td>
+              <td className="py-2 text-center">
+                {typeof value.ltm === "number"
+                  ? value.ltm.toFixed(2)
+                  : value.ltm}
+              </td>
               <td className="py-2 text-center text-red-600 font-bold">
                 <input
                   type="number"
-                  value={targets[key as keyof typeof targets]}
+                  value={value.target}
                   onChange={(e) => handleTargetChange(key, e.target.value)}
-                  className="w-20 text-center bg-transparent border-none outline-none focus:ring-0"
+                  className="w-20 text-center bg-transparent border-none focus:outline-none focus:ring-0"
+                  step="0.1"
                 />
               </td>
             </tr>

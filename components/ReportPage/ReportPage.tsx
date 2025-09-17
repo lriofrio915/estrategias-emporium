@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { ApiAssetItem } from "@/types/api";
+import {
+  ValuationDashboardData,
+  processApiDataForDashboard,
+} from "@/types/valuation";
 import CompanyOverview from "../CompanyOverview/CompanyOverview";
 import MarketAnalysis from "../MarketAnalysis/MarketAnalysis";
 import PerformanceChart from "../PerformanceChart/PerformanceChart";
@@ -12,12 +16,7 @@ import AnalystPerspectives from "../AnalystPerspectives/AnalystPerspectives";
 import Conclusion from "../Conclusion/Conclusion";
 import LoadingSpinner from "../Shared/LoadingSpinner";
 import ErrorDisplay from "../Shared/ErrorDisplay";
-import ValuationDashboard, {
-  ValuationDashboardData,
-} from "../ValuationDashboard/ValuationDashboard";
-import FutureFinancialTable, {
-  FinancialData,
-} from "../FutureFinancialTable/FutureFinancialTable";
+import ValuationDashboard from "../ValuationDashboard/ValuationDashboard";
 
 interface ReportPageProps {
   ticker: string;
@@ -25,101 +24,39 @@ interface ReportPageProps {
 
 export default function ReportPage({ ticker }: ReportPageProps) {
   const [assetData, setAssetData] = useState<ApiAssetItem | null>(null);
-  const [futureFinancials, setFutureFinancials] =
-    useState<FinancialData | null>(null);
-  const [valuationDashboardData, setValuationDashboardData] =
+  const [valuationData, setValuationData] =
     useState<ValuationDashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAllData = useCallback(async () => {
+  const fetchAssetData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [
-        assetResponse,
-        incomeResponse,
-        balanceResponse,
-        cashFlowResponse,
-        keyStatisticsResponse,
-      ] = await Promise.all([
-        fetch(`${window.location.origin}/api/${ticker}`),
-        fetch(`/api/income-statement?ticker=${ticker}`),
-        fetch(`/api/balance-sheet?ticker=${ticker}`),
-        fetch(`/api/free-cash-flow?ticker=${ticker}`),
-        fetch(`/api/key-statistics?ticker=${ticker}`),
-      ]);
+      const apiUrl = `/api/${ticker}`;
+      const response = await fetch(apiUrl);
 
-      // --- 1. PROCESAR RESPUESTA DEL INFORME PRINCIPAL ---
-      if (!assetResponse.ok) {
-        throw new Error(`Fallo al obtener los datos principales de ${ticker}.`);
-      }
-      const apiAssetResponse = await assetResponse.json();
-
-      if (apiAssetResponse.success === false) {
-        throw new Error(
-          apiAssetResponse.message || "Error desconocido al obtener datos."
-        );
+      if (!response.ok) {
+        throw new Error(`Fallo al obtener los datos de ${ticker}.`);
       }
 
-      if (apiAssetResponse.assetData && apiAssetResponse.assetData.length > 0) {
-        setAssetData(apiAssetResponse.assetData[0]);
+      const apiResponse = await response.json();
+
+      if (apiResponse.success === false) {
+        setError(apiResponse.message || "Error desconocido al obtener datos.");
+        return;
+      }
+
+      if (apiResponse.assetData && apiResponse.assetData.length > 0) {
+        const rawAssetData: ApiAssetItem = apiResponse.assetData[0];
+        setAssetData(rawAssetData);
+
+        // Procesamos los datos crudos para el ValuationDashboard
+        const processedData = processApiDataForDashboard(rawAssetData);
+        setValuationData(processedData);
       } else {
-        throw new Error(`No se encontraron datos para ${ticker}.`);
+        setError(`No se encontraron datos para ${ticker}.`);
       }
-
-      // --- 2. PROCESAR DATOS PARA TABLAS FINANCIERAS (Future & Valuation) ---
-      if (
-        !incomeResponse.ok ||
-        !balanceResponse.ok ||
-        !cashFlowResponse.ok ||
-        !keyStatisticsResponse.ok
-      ) {
-        throw new Error(
-          "No se pudieron obtener todos los datos financieros históricos y de valoración."
-        );
-      }
-
-      const incomeData = await incomeResponse.json();
-      const balanceData = await balanceResponse.json();
-      const cashFlowData = await cashFlowResponse.json();
-      const keyStatisticsData = await keyStatisticsResponse.json();
-
-      // Combinar datos para FutureFinancialTable
-      const combinedFutureData: FinancialData = {
-        headers: incomeData.headers,
-        metrics: {
-          ...incomeData.metrics,
-          ...balanceData.metrics,
-          ...cashFlowData.metrics,
-          enterpriseValue:
-            keyStatisticsData.metrics.enterpriseValue?.map((v: number) =>
-              v !== 0 ? v : "N/A"
-            ) || [],
-        },
-      };
-      setFutureFinancials(combinedFutureData);
-
-      // Combinar datos para ValuationDashboard
-      const valuationDataForDashboard: ValuationDashboardData = {
-        projectionsData: {
-          totalRevenue: incomeData.metrics.totalRevenue,
-          ebit: incomeData.metrics.ebit,
-          taxRateForCalcs: incomeData.metrics.taxRateForCalcs,
-          basicAverageShares: incomeData.metrics.basicAverageShares,
-          pretaxIncome: incomeData.metrics.pretaxIncome,
-        },
-        multiplesData: {
-          trailingPE: keyStatisticsData.metrics.trailingPE?.[0],
-          enterpriseValue: keyStatisticsData.metrics.enterpriseValue?.[0],
-          ebitda: incomeData.metrics.ebitda?.[0],
-          ebit: incomeData.metrics.ebit?.[0],
-          freeCashFlow: cashFlowData.metrics.freeCashFlow?.[0],
-        },
-        currentPrice:
-          apiAssetResponse.assetData[0]?.data.price?.regularMarketPrice || null,
-      };
-      setValuationDashboardData(valuationDataForDashboard);
     } catch (err: unknown) {
       console.error(`Error al obtener datos de ${ticker}:`, err);
       setError(
@@ -133,13 +70,26 @@ export default function ReportPage({ ticker }: ReportPageProps) {
   }, [ticker]);
 
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    fetchAssetData();
+  }, [fetchAssetData]);
 
-  if (loading) return <LoadingSpinner ticker={ticker} />;
-  if (error) return <ErrorDisplay error={error} />;
-  if (!assetData)
-    return <ErrorDisplay error={`No se encontraron datos para ${ticker}.`} />;
+  if (loading) {
+    return <LoadingSpinner ticker={ticker} />;
+  }
+
+  if (error) {
+    return <ErrorDisplay error={error} />;
+  }
+
+  if (!assetData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <p className="text-xl font-semibold">
+          No se pudieron cargar los datos del activo {ticker}.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 pt-2 font-inter">
@@ -155,7 +105,8 @@ export default function ReportPage({ ticker }: ReportPageProps) {
           </p>
         </header>
 
-        <ValuationDashboard ticker={ticker} data={valuationDashboardData} />
+        {/* Pasamos los datos procesados al dashboard */}
+        <ValuationDashboard ticker={ticker} data={valuationData} />
         <CompanyOverview assetData={assetData} />
         <MarketAnalysis assetData={assetData} />
         <PerformanceChart assetData={assetData} />
@@ -164,14 +115,12 @@ export default function ReportPage({ ticker }: ReportPageProps) {
         <Profitability assetData={assetData} />
         <AnalystPerspectives assetData={assetData} />
         <Conclusion assetData={assetData} />
-        <FutureFinancialTable ticker={ticker} data={futureFinancials} />
 
         <footer className="text-center mt-12 pt-8 border-t border-gray-200">
           <h3 className="font-bold mb-2 text-[#0A2342]">Aviso Legal</h3>
           <p className="text-xs text-[#849E8F] max-w-4xl mx-auto">
             El contenido de este informe tiene fines puramente educativos e
-            informativos y no constituye en ningún caso asesoramiento de
-            inversión.
+            informativos...
           </p>
         </footer>
       </div>
