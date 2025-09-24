@@ -8,63 +8,35 @@ import {
   XMarkIcon,
   ChevronDownIcon,
   ChevronUpIcon,
-  PlusCircleIcon,
   Cog6ToothIcon,
+  FolderOpenIcon,
 } from "@heroicons/react/24/outline";
-import AddPortfolioForm from "../AddPortfolioForm/AddPortfolioForm";
+import { Portfolio } from "@/types/api";
 
-// Define una interfaz para la estructura de cada portafolio
-interface Portfolio {
-  name: string; // Ej: "Nombre Apellido"
-  slug: string; // Ej: "nombre-apellido"
-  tickers: string[]; // Añadimos los tickers aquí
+interface NavbarProps {
+  portfolios: Portfolio[];
 }
 
-export default function Navbar() {
+export default function Navbar({ portfolios }: NavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [openSubDropdown, setOpenSubDropdown] = useState<string | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
-
+  const [isCoursesModalOpen, setIsCoursesModalOpen] = useState(false);
   const navbarRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedPortfolios = localStorage.getItem("portfolios");
-      if (savedPortfolios) {
-        try {
-          const parsedPortfolios: Portfolio[] = JSON.parse(savedPortfolios);
-          setPortfolios(parsedPortfolios);
-        } catch (error) {
-          console.error(
-            "Error al parsear los portafolios de localStorage:",
-            error
-          );
-          setPortfolios([]);
-        }
-      }
-    }
-  }, []);
-
   const toggleDropdown = (dropdownName: string) => {
     setOpenDropdown(openDropdown === dropdownName ? null : dropdownName);
     setOpenSubDropdown(null);
-    if (isMobileMenuOpen) {
-      setIsMobileMenuOpen(false);
-    }
   };
-
   const toggleSubDropdown = (subDropdownName: string) => {
     setOpenSubDropdown(
       openSubDropdown === subDropdownName ? null : subDropdownName
     );
   };
-
   const closeAllMenus = useCallback(() => {
     setIsMobileMenuOpen(false);
     setOpenDropdown(null);
     setOpenSubDropdown(null);
+    setIsCoursesModalOpen(false);
   }, []);
 
   useEffect(() => {
@@ -84,31 +56,11 @@ export default function Navbar() {
 
   useEffect(() => {
     document.body.style.overflow =
-      isMobileMenuOpen || isFormOpen ? "hidden" : "";
+      isMobileMenuOpen ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [isMobileMenuOpen, isFormOpen]);
-
-  const handleOpenForm = () => {
-    closeAllMenus();
-    setIsFormOpen(true);
-  };
-
-  const handlePortfolioAdded = (newPortfolio: Portfolio) => {
-    setPortfolios((prevPortfolios) => {
-      if (!prevPortfolios.some((p) => p.slug === newPortfolio.slug)) {
-        const updatedPortfolios = [...prevPortfolios, newPortfolio];
-        localStorage.setItem("portfolios", JSON.stringify(updatedPortfolios));
-        return updatedPortfolios;
-      }
-      return prevPortfolios;
-    });
-  };
-
-  const handleCloseForm = () => {
-    setIsFormOpen(false);
-  };
+  }, [isMobileMenuOpen]);
 
   return (
     <>
@@ -162,32 +114,32 @@ export default function Navbar() {
               {openDropdown === "trackRecord" && (
                 <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                   <Link
-                    href="/track-record/aluisa-diego"
+                    href="/operativas/aluisa-diego"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
                     Aluisa Diego
                   </Link>
                   <Link
-                    href="/track-record/riofrio-luis"
+                    href="/operativas/riofrio-luis"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
                     Riofrío Luis
                   </Link>
                   <Link
-                    href="/track-record/saa-mateo"
+                    href="/operativas/saa-mateo"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
                     Saa Mateo
                   </Link>
                   <Link
-                    href="/track-record/tenesaca-jose"
+                    href="/operativas/tenesaca-gabriel"
                     className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                     onClick={closeAllMenus}
                   >
-                    Tenesaca Jose
+                    Tenesaca Gabriel
                   </Link>
                 </div>
               )}
@@ -233,46 +185,6 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Menú de Informes */}
-            <div className="relative">
-              <button
-                onClick={() => toggleDropdown("informes")}
-                className="flex items-center text-white hover:text-gray-300 transition-colors duration-200 px-3 py-2 rounded-md font-medium focus:outline-none cursor-pointer"
-              >
-                Informes
-                {openDropdown === "informes" ? (
-                  <ChevronUpIcon className="ml-1 h-4 w-4" />
-                ) : (
-                  <ChevronDownIcon className="ml-1 h-4 w-4" />
-                )}
-              </button>
-              {openDropdown === "informes" && (
-                <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
-                  <Link
-                    href="/informes/MNQ"
-                    className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                    onClick={closeAllMenus}
-                  >
-                    Informes MNQ
-                  </Link>
-                  <Link
-                    href="/informes/MES"
-                    className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                    onClick={closeAllMenus}
-                  >
-                    Informes MES
-                  </Link>
-                  <Link
-                    href="/informes/ES"
-                    className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                    onClick={closeAllMenus}
-                  >
-                    Informes ES
-                  </Link>
-                </div>
-              )}
-            </div>
-
             {/* Menú de Herramientas */}
             <div className="relative">
               <button
@@ -288,52 +200,7 @@ export default function Navbar() {
                 )}
               </button>
               {openDropdown === "herramientas" && (
-                <div className="absolute top-full right-0 mt-2 w-56 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
-                  <div className="relative group">
-                    <button
-                      className="flex justify-between items-center px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200 w-full text-left"
-                      onClick={() => toggleSubDropdown("preMercado")}
-                    >
-                      <span>Pre-Mercado</span>
-                      {openSubDropdown === "preMercado" ? (
-                        <ChevronUpIcon className="ml-1 h-4 w-4" />
-                      ) : (
-                        <ChevronDownIcon className="ml-1 h-4 w-4" />
-                      )}
-                    </button>
-                    {openSubDropdown === "preMercado" && (
-                      <div className="absolute left-full top-0 mt-0 ml-1 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-20">
-                        <Link
-                          href="/pre-mercado/new-york"
-                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                          onClick={closeAllMenus}
-                        >
-                          Nueva York
-                        </Link>
-                        <Link
-                          href="/pre-mercado/sidney"
-                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                          onClick={closeAllMenus}
-                        >
-                          Sidney
-                        </Link>
-                        <Link
-                          href="/pre-mercado/asia"
-                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                          onClick={closeAllMenus}
-                        >
-                          Asia
-                        </Link>
-                        <Link
-                          href="/pre-mercado/europa"
-                          className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                          onClick={closeAllMenus}
-                        >
-                          Europa
-                        </Link>
-                      </div>
-                    )}
-                  </div>
+                <div className="absolute top-full left-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
                   <div className="relative group">
                     <button
                       className="flex justify-between items-center px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200 w-full text-left"
@@ -372,13 +239,6 @@ export default function Navbar() {
                   >
                     Stock Screener
                   </Link>
-                  <Link
-                    href="/recesion"
-                    className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
-                    onClick={closeAllMenus}
-                  >
-                    Recession Monitor
-                  </Link>
                 </div>
               )}
             </div>
@@ -398,16 +258,19 @@ export default function Navbar() {
               </button>
               {openDropdown === "portafolios" && (
                 <div className="absolute top-full right-0 mt-2 w-48 bg-[#1A3A5E] rounded-md shadow-lg py-1 z-10">
-                  <button
-                    onClick={handleOpenForm}
+                  <Link
+                    href="/portafolio"
                     className="flex items-center w-full px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
+                    onClick={closeAllMenus}
                   >
-                    <PlusCircleIcon className="h-5 w-5 mr-2" />
-                    Agregar
-                  </button>
+                    <FolderOpenIcon className="h-5 w-5 mr-2" />
+                    Gestionar
+                  </Link>
+
                   {portfolios.length > 0 && (
                     <hr className="border-gray-700 my-1" />
                   )}
+                  {/* Renderizado dinámico de portafolios */}
                   {portfolios.map((portfolio) => (
                     <Link
                       key={portfolio.slug}
@@ -435,35 +298,34 @@ export default function Navbar() {
               Track Record:
             </span>
             <Link
-              href="/track-record/aluisa-diego"
+              href="/operativas/aluisa-diego"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
               Aluisa Diego
             </Link>
             <Link
-              href="/track-record/riofrio-luis"
+              href="/operativas/riofrio-luis"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
               Riofrío Luis
             </Link>
             <Link
-              href="/track-record/saa-mateo"
+              href="/operativas/saa-mateo"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
               Saa Mateo
             </Link>
             <Link
-              href="/track-record/tenesaca-jose"
+              href="/operativas/tenesaca-gabriel"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
-              Tenesaca Jose
+              Tenesaca Gabriel
             </Link>
             <hr className="border-gray-700 my-2" />
-
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Estrategias:
             </span>
@@ -489,82 +351,15 @@ export default function Navbar() {
               Estrategia ES
             </Link>
             <hr className="border-gray-700 my-2" />
-
-            <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
-              Informes:
-            </span>
-            <Link
-              href="/informes/MNQ"
-              className="block px-3 py-2 text-white hover:text-gray-300 rounded-md text-base font-medium pl-6"
-              onClick={closeAllMenus}
-            >
-              Informes MNQ
-            </Link>
-            <Link
-              href="/informes/MES"
-              className="block px-3 py-2 text-white hover:text-gray-300 rounded-md text-base font-medium pl-6"
-              onClick={closeAllMenus}
-            >
-              Informes MES
-            </Link>
-            <Link
-              href="/informes/ES"
-              className="block px-3 py-2 text-white hover:text-gray-300 rounded-md text-base font-medium pl-6"
-              onClick={closeAllMenus}
-            >
-              Informes ES
-            </Link>
-            <hr className="border-gray-700 my-2" />
-
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Herramientas:
             </span>
-            <div className="px-3">
-              <span className="block text-white text-sm font-medium py-1">
-                Pre-Mercado
-              </span>
-              <Link
-                href="/pre-mercado/new-york"
-                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-                onClick={closeAllMenus}
-              >
-                Nueva York
-              </Link>
-              <Link
-                href="/pre-mercado/sidney"
-                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-                onClick={closeAllMenus}
-              >
-                Sidney
-              </Link>
-              <Link
-                href="/pre-mercado/asia"
-                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-                onClick={closeAllMenus}
-              >
-                Asia
-              </Link>
-              <Link
-                href="/pre-mercado/europa"
-                className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-                onClick={closeAllMenus}
-              >
-                Europa
-              </Link>
-            </div>
             <Link
               href="/stock-screener"
               className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
               onClick={closeAllMenus}
             >
               Stock Screener
-            </Link>
-            <Link
-              href="/recesion"
-              className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
-              onClick={closeAllMenus}
-            >
-              Recession Monitor
             </Link>
             <Link
               href="/sentimiento-macro/NQ"
@@ -581,17 +376,17 @@ export default function Navbar() {
               Sesgo Diario - S&P 500
             </Link>
             <hr className="border-gray-700 my-2" />
-
             <span className="block text-gray-400 text-sm font-semibold px-3 py-2">
               Portafolios:
             </span>
-            <button
-              onClick={handleOpenForm}
+            <Link
+              href="/portafolio"
               className="flex items-center w-full text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
+              onClick={closeAllMenus}
             >
-              <PlusCircleIcon className="h-5 w-5 mr-2" />
-              Agregar
-            </button>
+              <FolderOpenIcon className="h-5 w-5 mr-2" />
+              Gestionar
+            </Link>
             {portfolios.length > 0 && <hr className="border-gray-700 my-2" />}
             {portfolios.map((portfolio) => (
               <Link
@@ -606,12 +401,6 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
-      {isFormOpen && (
-        <AddPortfolioForm
-          onClose={handleCloseForm}
-          onPortfolioAdded={handlePortfolioAdded}
-        />
-      )}
     </>
   );
 }

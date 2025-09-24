@@ -1,12 +1,22 @@
 // types/api.ts
 
 // =====================================
-// Interfaces de Portafolio
+// Interfaces de Portafolio y Cartera
 // =====================================
-export interface Portfolio {
+
+// NUEVA INTERFAZ para el sub-documento de Cartera
+export interface Cartera {
+  _id?: string; // MongoDB asignará un ID a cada cartera anidada
   name: string;
   slug: string;
   tickers: string[];
+}
+export interface Portfolio {
+  _id: string;
+  name: string;
+  slug: string;
+  tickers: string[]; // Tickers principales/no asignados
+  carteras: Cartera[]; // Array de carteras anidadas
 }
 
 // Definimos la interfaz para los datos de cada activo, como se mostrarán en la tabla
