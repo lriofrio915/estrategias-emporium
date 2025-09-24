@@ -1,27 +1,25 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import {
-  TrashIcon,
-  PlusCircleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  ArrowLeftIcon,
-} from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { Portfolio, Cartera, ApiAssetItem } from "@/types/api";
 import {
   addTickerToCartera,
   removeTickerFromCartera,
-  deleteCartera, // Importamos la nueva acción
+  deleteCartera,
 } from "@/app/actions/portfolioActions";
+import {
+  TrashIcon,
+  PlusCircleIcon,
+  ExclamationCircleIcon,
+  ArrowUturnLeftIcon,
+} from "@heroicons/react/24/outline";
 
+// Interfaces para los tipos de datos
 interface AssetData {
   ticker: string;
   name: string;
-  sector: string;
-  industry: string;
   price: number | null;
   dailyChange: number | null;
 }
@@ -30,20 +28,29 @@ interface Props {
   portfolio: Portfolio;
   cartera: Cartera;
 }
+// Tipo para valores que pueden ser number o tener propiedad raw
+type ValueWithRaw = number | { raw: number };
 
-export default function CarteraDetailPageClient({
-  portfolio: parentPortfolio,
-  cartera: initialCartera,
-}: Props) {
-  const [cartera, setCartera] = useState<Cartera>(initialCartera);
+/**
+ * Función auxiliar para extraer el valor numérico de un campo
+ * que puede ser directamente un número o un objeto con propiedad raw
+ */
+const getRawValue = (value: ValueWithRaw | null | undefined): number | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return value;
+  if (typeof value === "object" && "raw" in value) return value.raw;
+  return null;
+};
+
+export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
   const [assets, setAssets] = useState<AssetData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newTickerInput, setNewTickerInput] = useState("");
-  const [sortBy, setSortBy] = useState<"sector" | "industry" | "none">("none");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const router = useRouter();
 
-  // (El código de fetchAssetData, useEffect, sortedAssets, etc. no cambia)
   const fetchAssetData = useCallback(async (tickers: string[]) => {
     if (tickers.length === 0) {
       setAssets([]);
@@ -54,20 +61,25 @@ export default function CarteraDetailPageClient({
     setError(null);
     try {
       const response = await fetch(`/api/stocks?tickers=${tickers.join(",")}`);
+      if (!response.ok)
+        throw new Error("Fallo en la comunicación con la API de activos.");
       const result = await response.json();
       if (!result.success)
-        throw new Error(result.message || "Error fetching asset data");
-      const fetchedAssets = result.data.map((item: ApiAssetItem) => ({
-        ticker: item.ticker,
-        name: item.data.price?.longName || item.ticker,
-        sector: item.data.assetProfile?.sector || "N/A",
-        industry: item.data.assetProfile?.industry || "N/A",
-        price: item.data.price?.regularMarketPrice ?? null,
-        dailyChange: item.data.price?.regularMarketChangePercent ?? null,
-      }));
+        throw new Error(result.message || "Error al obtener datos de activos");
+
+      const fetchedAssets = result.data.map(
+        (item: ApiAssetItem): AssetData => ({
+          ticker: item.ticker,
+          name: item.data.price?.longName || item.ticker,
+          price: getRawValue(item.data.price?.regularMarketPrice),
+          dailyChange: getRawValue(item.data.price?.regularMarketChangePercent),
+        })
+      );
       setAssets(fetchedAssets);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load assets.");
+      setError(
+        err instanceof Error ? err.message : "Falló al cargar los activos."
+      );
     } finally {
       setLoading(false);
     }
@@ -76,49 +88,36 @@ export default function CarteraDetailPageClient({
   useEffect(() => {
     fetchAssetData(cartera.tickers);
   }, [cartera.tickers, fetchAssetData]);
-  const sortedAssets = useMemo(() => {
-    const sortableAssets = [...assets];
-    if (sortBy === "sector")
-      return sortableAssets.sort((a, b) => a.sector.localeCompare(b.sector));
-    if (sortBy === "industry")
-      return sortableAssets.sort((a, b) =>
-        a.industry.localeCompare(b.industry)
-      );
-    return sortableAssets;
-  }, [assets, sortBy]);
-  const getPriceColor = (change: number | null) => {
-    if (change === null) return "text-gray-500";
-    return change * 100 > 0 ? "text-green-600" : "text-red-600";
-  };
-  // (Fin del código sin cambios)
 
-  const handleAddTicker = async (e: React.FormEvent) => {
+  const handleAddTicker = async (e: FormEvent) => {
     e.preventDefault();
     const tickerToAdd = newTickerInput.trim().toUpperCase();
-    if (!tickerToAdd) return;
+    if (!tickerToAdd || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setError(null);
     try {
-      const updatedCartera = await addTickerToCartera(
-        parentPortfolio.slug,
-        cartera.slug,
-        tickerToAdd
-      );
-      setCartera(updatedCartera);
+      await addTickerToCartera(portfolio.slug, cartera.slug, tickerToAdd);
       setNewTickerInput("");
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo añadir el ticker."
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDeleteTicker = async (tickerToDelete: string) => {
+    setError(null);
     try {
-      const updatedCartera = await removeTickerFromCartera(
-        parentPortfolio.slug,
+      await removeTickerFromCartera(
+        portfolio.slug,
         cartera.slug,
         tickerToDelete
       );
-      setCartera(updatedCartera);
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "No se pudo eliminar el ticker."
@@ -126,210 +125,208 @@ export default function CarteraDetailPageClient({
     }
   };
 
-  // SOLUCIÓN: Lógica para eliminar la cartera y refrescar
   const handleDeleteCartera = async () => {
-    if (
-      window.confirm(
-        `¿Estás seguro de que quieres eliminar la cartera "${cartera.name}"?`
-      )
-    ) {
-      try {
-        await deleteCartera(parentPortfolio.slug, cartera.slug);
-        router.push(`/portafolio/${parentPortfolio.slug}`); // Redirige a la página anterior
-        router.refresh(); // Refresca los datos del servidor para ver la lista actualizada
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "No se pudo eliminar la cartera."
-        );
-      }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await deleteCartera(portfolio.slug, cartera.slug);
+      router.push(`/portafolio/${portfolio.slug}`);
+      router.refresh();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo eliminar la cartera."
+      );
+      setIsSubmitting(false);
+      setIsDeleteModalOpen(false);
     }
   };
 
+  const getPriceColor = (change: number | null) => {
+    if (change === null) return "text-gray-500";
+    return change > 0 ? "text-green-600" : "text-red-600";
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 pt-2 font-inter">
-      <div className="container mx-auto p-4 md:p-8 max-w-7xl">
-        <header className="text-center mb-12 mt-8">
-          <Link
-            href={`/portafolio/${parentPortfolio.slug}`}
-            className="text-indigo-600 hover:text-indigo-800 inline-flex items-center mb-4"
-          >
-            <ArrowLeftIcon className="h-5 w-5 mr-2" />
-            Volver al Portafolio de {parentPortfolio.name}
-          </Link>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-[#0A2342] mb-4">
-            Cartera: {cartera.name}
-          </h1>
-          <p className="text-lg md:text-xl text-gray-600">
-            Activos asignados a esta cartera específica.
-          </p>
-        </header>
-
-        <section className="bg-white rounded-lg shadow-xl p-6 md:p-8 mb-12">
-          <h2 className="text-2xl font-bold text-center text-[#0A2342] mb-6">
-            Gestionar Activos de la Cartera
-          </h2>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <form
-              onSubmit={handleAddTicker}
-              className="flex flex-grow sm:flex-grow-0 gap-4"
+    <>
+      <div className="min-h-screen bg-gray-50 text-gray-800 pt-2 font-inter">
+        <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+          <header className="mb-12 mt-8">
+            <Link
+              href={`/portafolio/${portfolio.slug}`}
+              className="text-blue-600 hover:underline flex items-center mb-4"
             >
-              <input
-                type="text"
-                value={newTickerInput}
-                onChange={(e) => setNewTickerInput(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 w-full sm:w-auto"
-                placeholder="Añadir Ticker (ej: GOOGL)"
-              />
-              <button
-                type="submit"
-                className="bg-[#0A2342] text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-800 flex items-center justify-center"
+              <ArrowUturnLeftIcon className="h-5 w-5 mr-2" />
+              Volver a {portfolio.name}
+            </Link>
+            <div className="text-center">
+              <h1 className="text-4xl md:text-5xl font-extrabold text-[#0A2342] mb-4">
+                Cartera: {cartera.name}
+              </h1>
+              <p className="text-lg md:text-xl text-gray-600">
+                Lista de seguimiento para tu estrategia &quot;{cartera.name}
+                &quot;.
+              </p>
+            </div>
+          </header>
+
+          {error && (
+            <div
+              className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-8 rounded-md"
+              role="alert"
+            >
+              <p className="font-bold">Error:</p>
+              <p>{error}</p>
+            </div>
+          )}
+
+          <section className="bg-white rounded-lg shadow-xl p-6 md:p-8">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
+              <form
+                onSubmit={handleAddTicker}
+                className="flex items-center gap-2 w-full sm:w-auto"
               >
-                <PlusCircleIcon className="h-5 w-5 mr-2" />
-                Añadir
+                <input
+                  type="text"
+                  value={newTickerInput}
+                  onChange={(e) => setNewTickerInput(e.target.value)}
+                  placeholder="Añadir Ticker a la cartera"
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 w-full sm:w-auto focus:ring-2 focus:ring-blue-500"
+                  disabled={isSubmitting}
+                />
+                <button
+                  type="submit"
+                  className="bg-[#0A2342] text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 flex items-center justify-center disabled:bg-gray-400"
+                  disabled={isSubmitting}
+                >
+                  <PlusCircleIcon className="h-5 w-5 mr-2" />
+                  {isSubmitting ? "..." : "Añadir"}
+                </button>
+              </form>
+              <button
+                onClick={() => setIsDeleteModalOpen(true)}
+                className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center w-full sm:w-auto"
+              >
+                <TrashIcon className="h-5 w-5 mr-2" />
+                Eliminar Cartera
               </button>
-            </form>
-            {/* SOLUCIÓN: Botón para eliminar la cartera */}
-            <button
-              onClick={handleDeleteCartera}
-              className="bg-red-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center w-full sm:w-auto"
-            >
-              <TrashIcon className="h-5 w-5 mr-2" />
-              Eliminar Cartera
-            </button>
-          </div>
-        </section>
+            </div>
 
-        {error && (
-          <div
-            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-8 rounded-md"
-            role="alert"
-          >
-            <p className="font-bold">Error</p>
-            <p>{error}</p>
-          </div>
-        )}
-
-        <section className="bg-white rounded-lg shadow-xl p-6 md:p-8">
-          <div className="overflow-x-auto">
-            <table className="min-w-full bg-white">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
-                    ITEM
-                  </th>
-                  <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
-                    ACTIVO
-                  </th>
-                  <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
-                    TICKER
-                  </th>
-                  <th
-                    className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase cursor-pointer"
-                    onClick={() =>
-                      setSortBy(sortBy === "sector" ? "none" : "sector")
-                    }
-                  >
-                    SECTOR{" "}
-                    {sortBy === "sector" ? (
-                      <ChevronUpIcon className="h-4 w-4 inline" />
-                    ) : (
-                      <ChevronDownIcon className="h-4 w-4 inline" />
-                    )}
-                  </th>
-                  <th
-                    className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase cursor-pointer"
-                    onClick={() =>
-                      setSortBy(sortBy === "industry" ? "none" : "industry")
-                    }
-                  >
-                    INDUSTRIA{" "}
-                    {sortBy === "industry" ? (
-                      <ChevronUpIcon className="h-4 w-4 inline" />
-                    ) : (
-                      <ChevronDownIcon className="h-4 w-4 inline" />
-                    )}
-                  </th>
-                  <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
-                    PRECIO ACTUAL
-                  </th>
-                  <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
-                    CAMBIO % DIARIO
-                  </th>
-                  <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
-                    INFORME
-                  </th>
-                  <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
-                    ACCIONES
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {loading ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full bg-white">
+                <thead className="bg-gray-100">
                   <tr>
-                    <td colSpan={9} className="text-center py-8 text-gray-500">
-                      Cargando activos...
-                    </td>
+                    <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
+                      Activo
+                    </th>
+                    <th className="py-3 px-6 text-right text-sm font-semibold text-gray-700 uppercase">
+                      Precio
+                    </th>
+                    <th className="py-3 px-6 text-right text-sm font-semibold text-gray-700 uppercase">
+                      Cambio %
+                    </th>
+                    <th className="py-3 px-6 text-center text-sm font-semibold text-gray-700 uppercase">
+                      Informe
+                    </th>
+                    <th className="py-3 px-6 text-center text-sm font-semibold text-gray-700 uppercase">
+                      Acciones
+                    </th>
                   </tr>
-                ) : sortedAssets.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="text-center py-8 text-gray-500">
-                      Esta cartera aún no tiene activos.
-                    </td>
-                  </tr>
-                ) : (
-                  sortedAssets.map((asset, index) => (
-                    <tr key={asset.ticker} className="hover:bg-gray-50">
-                      <td className="py-4 px-6 text-sm text-gray-800">
-                        {index + 1}
-                      </td>
-                      <td className="py-4 px-6 text-sm font-medium text-gray-900">
-                        {asset.name}
-                      </td>
-                      <td className="py-4 px-6 text-sm text-gray-800">
-                        {asset.ticker}
-                      </td>
-                      <td className="py-4 px-6 text-sm text-gray-800">
-                        {asset.sector}
-                      </td>
-                      <td className="py-4 px-6 text-sm text-gray-800">
-                        {asset.industry}
-                      </td>
-                      <td className="py-4 px-6 text-sm text-gray-800">
-                        {asset.price ? `$${asset.price.toFixed(2)}` : "N/A"}
-                      </td>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {loading ? (
+                    <tr>
                       <td
-                        className={`py-4 px-6 text-sm font-semibold ${getPriceColor(
-                          asset.dailyChange
-                        )}`}
+                        colSpan={5}
+                        className="text-center py-8 text-gray-500"
                       >
-                        {asset.dailyChange
-                          ? `${(asset.dailyChange * 100).toFixed(2)}%`
-                          : "N/A"}
-                      </td>
-                      <td className="py-4 px-6 text-sm">
-                        <Link
-                          href={`/stock-screener/${asset.ticker.toLowerCase()}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Ver más
-                        </Link>
-                      </td>
-                      <td className="py-4 px-6 text-sm">
-                        <button
-                          onClick={() => handleDeleteTicker(asset.ticker)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
+                        Cargando activos...
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                  ) : assets.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="text-center py-8 text-gray-500"
+                      >
+                        Esta cartera aún no tiene activos.
+                      </td>
+                    </tr>
+                  ) : (
+                    assets.map((asset) => (
+                      <tr key={asset.ticker} className="hover:bg-gray-50">
+                        <td className="py-4 px-6 font-medium">
+                          <p className="text-gray-900">{asset.name}</p>
+                          <p className="text-gray-500 text-xs">
+                            {asset.ticker}
+                          </p>
+                        </td>
+                        <td className="py-4 px-6 text-sm text-right text-gray-800">
+                          {asset.price ? `$${asset.price.toFixed(2)}` : "N/A"}
+                        </td>
+                        <td
+                          className={`py-4 px-6 text-sm text-right font-semibold ${getPriceColor(
+                            asset.dailyChange
+                          )}`}
+                        >
+                          {asset.dailyChange !== null
+                            ? `${(asset.dailyChange * 100).toFixed(2)}%`
+                            : "N/A"}
+                        </td>
+                        <td className="py-4 px-6 text-sm text-center">
+                          <Link
+                            href={`/stock-screener/${asset.ticker.toLowerCase()}`}
+                            className="text-blue-600 hover:underline"
+                          >
+                            Ver más
+                          </Link>
+                        </td>
+                        <td className="py-4 px-6 text-sm text-center">
+                          <button
+                            onClick={() => handleDeleteTicker(asset.ticker)}
+                            className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </div>
-    </div>
+
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm relative text-center">
+            <ExclamationCircleIcon className="h-16 w-16 text-red-500 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-gray-800 mb-4">
+              ¿Eliminar Cartera?
+            </h3>
+            <p className="text-gray-600 mb-6">
+              Esta acción eliminará la cartera &quot;{cartera.name}&quot;
+              permanentemente.
+            </p>
+            <div className="flex justify-center space-x-4">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-6 py-2 bg-gray-300 text-gray-800 rounded-md font-semibold hover:bg-gray-400 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteCartera}
+                className="px-6 py-2 bg-red-600 text-white rounded-md font-semibold hover:bg-red-700 transition-colors"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Eliminando..." : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

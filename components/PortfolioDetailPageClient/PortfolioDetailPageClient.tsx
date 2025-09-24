@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Portfolio, ApiAssetItem, Cartera } from "@/types/api";
+import { Portfolio, ApiAssetItem } from "@/types/api";
 import {
   addTickerToPortfolio,
   removeTickerFromPortfolio,
@@ -14,14 +14,13 @@ import {
   TrashIcon,
   PlusCircleIcon,
   ChevronDownIcon,
-  ChevronUpIcon,
   FolderIcon,
   ArrowRightIcon,
   XMarkIcon,
   ExclamationCircleIcon,
 } from "@heroicons/react/24/outline";
 
-// Interfaz para los datos de activos que se mostrarán en la UI
+// Interfaces para los datos de activos que se mostrarán en la UI
 interface AssetData {
   ticker: string;
   name: string;
@@ -35,12 +34,16 @@ interface Props {
   portfolio: Portfolio;
 }
 
-// Función auxiliar para obtener el valor numérico de la API de forma segura
-const getRawValue = (value: any): number | null => {
+// Tipo para valores que pueden ser number o tener propiedad raw
+type ValueWithRaw = number | { raw: number };
+
+/**
+ * Función auxiliar para obtener el valor numérico de la API de forma segura
+ */
+const getRawValue = (value: ValueWithRaw | null | undefined): number | null => {
+  if (value === null || value === undefined) return null;
   if (typeof value === "number") return value;
-  if (value && typeof value === "object" && "raw" in value) {
-    return value.raw;
-  }
+  if (typeof value === "object" && "raw" in value) return value.raw;
   return null;
 };
 

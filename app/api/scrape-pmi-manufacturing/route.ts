@@ -47,13 +47,13 @@ export async function GET() {
     // --- NUEVA ESTRATEGIA MEJORADA ---
 
     // 1. Buscar el valor actual con patrones más específicos
-    let actualMatch = cleanText.match(/Manufacturing PMI eased to ([\d.]+)/i);
+    const actualMatch = cleanText.match(/Manufacturing PMI eased to ([\d.]+)/i);
     if (actualMatch && actualMatch[1]) {
       actualValue = safeParseFloat(actualMatch[1]);
     }
 
     // 2. Buscar el valor previo basado en el contexto
-    let previousMatch = cleanText.match(/from.*? ([\d.]+)/i);
+    const previousMatch = cleanText.match(/from.*? ([\d.]+)/i);
     if (previousMatch && previousMatch[1]) {
       previousValue = safeParseFloat(previousMatch[1]);
     }
@@ -62,7 +62,7 @@ export async function GET() {
     if (cleanText.includes("in line with market forecasts")) {
       forecastValue = actualValue; // Si está en línea, la previsión es igual al valor actual
     } else {
-      let forecastMatch = cleanText.match(/market forecasts of ([\d.]+)/i);
+      const forecastMatch = cleanText.match(/market forecasts of ([\d.]+)/i);
       if (forecastMatch && forecastMatch[1]) {
         forecastValue = safeParseFloat(forecastMatch[1]);
       }

@@ -21,7 +21,6 @@ export default function Navbar({ portfolios }: NavbarProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [openSubDropdown, setOpenSubDropdown] = useState<string | null>(null);
-  const [isCoursesModalOpen, setIsCoursesModalOpen] = useState(false);
   const navbarRef = useRef<HTMLDivElement>(null);
   const toggleDropdown = (dropdownName: string) => {
     setOpenDropdown(openDropdown === dropdownName ? null : dropdownName);
@@ -36,7 +35,6 @@ export default function Navbar({ portfolios }: NavbarProps) {
     setIsMobileMenuOpen(false);
     setOpenDropdown(null);
     setOpenSubDropdown(null);
-    setIsCoursesModalOpen(false);
   }, []);
 
   useEffect(() => {
