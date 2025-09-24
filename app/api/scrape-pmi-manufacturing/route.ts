@@ -44,113 +44,65 @@ export async function GET() {
     const pageText = $("body").text();
     const cleanText = pageText.replace(/\s+/g, " ").trim();
 
-    // ESTRATEGIA 1: Extracción directa de elementos específicos
-    const actualValueElement = $(
-      ".actual-value, .latest-value, .current-value, .value"
-    )
-      .first()
-      .text()
-      .trim();
-    if (actualValueElement) {
-      actualValue = safeParseFloat(actualValueElement);
+    // --- NUEVA ESTRATEGIA MEJORADA ---
+
+    // 1. Buscar el valor actual con patrones más específicos
+    let actualMatch = cleanText.match(/Manufacturing PMI eased to ([\d.]+)/i);
+    if (actualMatch && actualMatch[1]) {
+      actualValue = safeParseFloat(actualMatch[1]);
     }
 
-    // ESTRATEGIA 2: Búsqueda con expresiones regulares mejoradas
-    const patterns = [
-      // Patrones para valor actual
-      /(?:PMI.*?(?:stood at|was|rose to|increased to|fell to|reached|came in at)\s+)([\d.]+)/gi,
-      /(?:Manufacturing PMI.*?)([\d.]+)(?:\s+in\s+\w+\s+\d{4})/gi,
-      /(?:The.*?PMI.*?)([\d.]+)(?:\s+from)/gi,
+    // 2. Buscar el valor previo basado en el contexto
+    let previousMatch = cleanText.match(/from.*? ([\d.]+)/i);
+    if (previousMatch && previousMatch[1]) {
+      previousValue = safeParseFloat(previousMatch[1]);
+    }
 
-      // Patrones para valor estimado/preliminar
-      /(?:preliminary estimate of|preliminary reading of|initial estimate of|flash estimate of)\s+([\d.]+)/gi,
-      /(?:from\s+)([\d.]+)(?:\s+in the preliminary estimate)/gi,
-      /(?:down from|up from|compared to)\s+([\d.]+)(?:\s+preliminary)/gi,
-
-      // Patrones para valor anterior
-      /(?:from\s+)([\d.]+)(?:\s+in\s+\w+)/gi,
-      /(?:up from|down from|compared to)\s+([\d.]+)(?:\s+in)/gi,
-    ];
-
-    const matches: number[] = [];
-
-    // Buscar coincidencias en el texto
-    patterns.forEach((pattern) => {
-      let match;
-      while ((match = pattern.exec(cleanText)) !== null) {
-        if (match[1]) {
-          const parsedValue = safeParseFloat(match[1]);
-          if (parsedValue !== null) {
-            matches.push(parsedValue);
-          }
-        }
-      }
-    });
-
-    // Procesar las coincidencias encontradas
-    if (matches.length >= 2) {
-      // Ordenar y deducir qué valor es actual y cuál es estimado
-      const sortedMatches = [...new Set(matches)].sort((a, b) => b - a);
-
-      if (actualValue === null && sortedMatches.length > 0) {
-        actualValue = sortedMatches[0];
-      }
-
-      if (forecastValue === null && sortedMatches.length > 1) {
-        // Buscar específicamente el valor estimado en el contexto
-        const estimateContext = cleanText.match(
-          /(preliminary|estimate|flash).*?([\d.]+)/i
-        );
-        if (estimateContext && estimateContext[2]) {
-          forecastValue = safeParseFloat(estimateContext[2]);
-        } else {
-          forecastValue = sortedMatches[1];
-        }
+    // 3. Determinar el valor de previsión
+    if (cleanText.includes("in line with market forecasts")) {
+      forecastValue = actualValue; // Si está en línea, la previsión es igual al valor actual
+    } else {
+      let forecastMatch = cleanText.match(/market forecasts of ([\d.]+)/i);
+      if (forecastMatch && forecastMatch[1]) {
+        forecastValue = safeParseFloat(forecastMatch[1]);
       }
     }
 
-    // ESTRATEGIA 3: Búsqueda específica en el contexto del texto proporcionado
-    const specificPatterns = [
-      /stood at ([\d.]+).*?down.*?preliminary estimate of ([\d.]+)/i,
-      /stood at ([\d.]+).*?from.*?preliminary.*?([\d.]+)/i,
-      /([\d.]+).*?down from.*?preliminary.*?([\d.]+)/i,
-      /([\d.]+).*?preliminary.*?([\d.]+)/i,
-    ];
+    // --- ESTRATEGIAS DE FALLBACK (SI LAS NUEVAS FALLAN) ---
 
-    for (const pattern of specificPatterns) {
-      const match = cleanText.match(pattern);
-      if (match && match[1] && match[2]) {
-        actualValue = safeParseFloat(match[1]);
-        forecastValue = safeParseFloat(match[2]);
-        break;
+    // ESTRATEGIA 1 (Fallback): Extracción directa de elementos HTML
+    if (actualValue === null) {
+      const actualValueElement = $(
+        ".actual-value, .latest-value, .current-value, .value"
+      )
+        .first()
+        .text()
+        .trim();
+      if (actualValueElement) {
+        actualValue = safeParseFloat(actualValueElement);
       }
     }
 
-    // ESTRATEGIA 4: Búsqueda en tablas (fallback robusto)
+    // ESTRATEGIA 4 (Fallback): Búsqueda en tablas
     if (actualValue === null || forecastValue === null) {
       $(".table-responsive, .table, .data-table, .economic-calendar").each(
         (i, table) => {
           const rows = $(table).find("tr");
-
           rows.each((j, row) => {
             const rowText = $(row).text();
             if (rowText.includes("Manufacturing") || rowText.includes("PMI")) {
               const cells = $(row).find("td, th");
-
               cells.each((k, cell) => {
                 const cellText = $(cell).text().trim();
                 const numberMatch = cellText.match(/([\d.]+)/);
-
                 if (numberMatch) {
                   const value = safeParseFloat(numberMatch[1]);
                   if (value === null) return;
-
                   const headerText = $(table)
                     .find("th")
                     .eq(k)
                     .text()
                     .toLowerCase();
-
                   if (
                     headerText.includes("actual") ||
                     headerText.includes("latest")
@@ -165,10 +117,6 @@ export async function GET() {
                   } else if (headerText.includes("previous")) {
                     previousValue = value;
                   }
-
-                  // Si no hay headers claros, usar posición relativa
-                  if (actualValue === null && k === 1) actualValue = value;
-                  if (forecastValue === null && k === 2) forecastValue = value;
                 }
               });
             }
@@ -176,20 +124,6 @@ export async function GET() {
         }
       );
     }
-
-    // ESTRATEGIA 5: Búsqueda en elementos de noticias o contenido principal
-    $(".news-content, .article-content, .main-content, .economic-data").each(
-      (i, element) => {
-        const content = $(element).text();
-        const contentMatch = content.match(
-          /PMI.*?([\d.]+).*?preliminary.*?([\d.]+)/i
-        );
-        if (contentMatch && contentMatch[1] && contentMatch[2]) {
-          actualValue = safeParseFloat(contentMatch[1]);
-          forecastValue = safeParseFloat(contentMatch[2]);
-        }
-      }
-    );
 
     // Validación y limpieza final de valores
     if (actualValue !== null && (actualValue < 0 || actualValue > 100)) {

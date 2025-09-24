@@ -32,56 +32,50 @@ export async function GET() {
 
     // Obtener todo el texto del cuerpo de la página para buscar los valores
     const pageText = $("body").text();
-    // Para depuración: console.log("Texto completo de la página (primeros 500 caracteres):", pageText.substring(0, 500));
+    const cleanText = pageText.replace(/\s+/g, " ").trim();
 
     // --- Extracción de valor actual ---
-    // Definir patrones de expresiones regulares para el valor actual de la inflación anual.
+    // Se añaden patrones más específicos para capturar diferentes redacciones.
     const actualValuePatterns = [
-      // Nuevo patrón para "remained at X%" o "stood at X%"
+      // Patrón para "accelerated to X%"
+      /annual inflation rate accelerated to ([\d.]+?)%/i,
+      // Patrón para "remained at X%" o "stood at X%"
       /annual inflation rate\s*(?:remained at|stood at)\s+([\d.]+?)%/i,
-      // Patrón existente para "The annual inflation rate... to X%"
+      // Patrón genérico para "The annual inflation rate... to X%"
       /The annual inflation rate.*?to\s+([\d.]+?)%/i,
     ];
 
     // Intentar extraer el valor actual usando los patrones definidos
     for (const pattern of actualValuePatterns) {
-      const match = pageText.match(pattern);
+      const match = cleanText.match(pattern);
       if (match && match[1]) {
         actualValue = parseFloat(match[1]);
-        // Para depuración: console.log("Actual Match (Regex):", match[1], "Parsed:", actualValue);
         break; // Detenerse en el primer patrón que coincida
       }
     }
 
     // --- Extracción de valor de previsión ---
-
-    // Prioridad 1 para la previsión: Buscar un porcentaje explícito en "forecasts of X%"
-    const explicitForecastPattern =
-      /(?:below|above)?\s*forecasts of\s+([\d.]+?)%/i;
-    const explicitForecastMatch = pageText.match(explicitForecastPattern);
-    if (explicitForecastMatch && explicitForecastMatch[1]) {
-      forecastValue = parseFloat(explicitForecastMatch[1]);
-      // Para depuración: console.log("Forecast Match (Explicit Percentage):", explicitForecastMatch[1], "Parsed:", forecastValue);
-    }
-
-    // Prioridad 2 para la previsión (solo si forecastValue aún no se ha encontrado):
-    // Manejar frases como "in line with expectations" o "matching expectations"
-    if (forecastValue === null && actualValue !== null) {
-      if (
-        pageText.includes("in line with expectations") ||
-        pageText.includes("matching expectations")
-      ) {
-        forecastValue = actualValue;
-        // Para depuración: console.log("Forecast Match (In line/Matching):", "Set to Actual Value:", forecastValue);
+    // Si el texto indica que el dato está "en línea con las expectativas", la previsión es igual al valor actual.
+    if (
+      actualValue !== null &&
+      (cleanText.includes("in line with market expectations") ||
+        cleanText.includes("matching expectations"))
+    ) {
+      forecastValue = actualValue;
+    } else {
+      // Si no, se busca un valor explícito de previsión.
+      const explicitForecastPattern =
+        /(?:below|above)?\s*forecasts of\s+([\d.]+?)%/i;
+      const explicitForecastMatch = cleanText.match(explicitForecastPattern);
+      if (explicitForecastMatch && explicitForecastMatch[1]) {
+        forecastValue = parseFloat(explicitForecastMatch[1]);
       }
     }
 
-    // --- Fallback para buscar en tablas si las expresiones regulares no encontraron los valores ---
-    // Esta lógica solo se ejecuta si los valores aún son null después de los intentos con regex
+    // --- Fallback: buscar en tablas si las expresiones regulares fallan ---
     if (actualValue === null || forecastValue === null) {
       $(".table-responsive .table-hover tbody tr").each((i, el) => {
         const variableName = $(el).find("td a").first().text().trim();
-        // Buscar por "Inflation Rate" o "CPI" para asegurar que es la fila correcta
         if (
           variableName.includes("Inflation Rate") ||
           variableName.includes("CPI")
@@ -90,23 +84,19 @@ export async function GET() {
             .find("td")
             .map((j, td) => $(td).text().trim())
             .get();
-          // Solo asignar si el valor actual aún no se ha encontrado por regex
+
           if (values[1] && actualValue === null) {
             actualValue = parseFloat(
               values[1].replace("%", "").replace(",", ".")
             );
-            // Para depuración: console.log("Actual Match (Table Fallback):", values[1], "Parsed:", actualValue);
           }
-          // Solo asignar si la previsión aún no se ha encontrado por regex
           if (values[2] && forecastValue === null) {
             forecastValue = parseFloat(
               values[2].replace("%", "").replace(",", ".")
             );
-            // Para depuración: console.log("Forecast Match (Table Fallback):", values[2], "Parsed:", forecastValue);
           }
-          // Si ambos valores se encuentran por tabla, podemos salir del bucle .each para optimizar
           if (actualValue !== null && forecastValue !== null) {
-            return false; // Esto detiene la iteración de .each
+            return false;
           }
         }
       });
@@ -114,16 +104,14 @@ export async function GET() {
 
     // --- Manejo de la respuesta ---
 
-    // Si aún no se encuentran ambos valores, devolver un error
     if (actualValue === null || forecastValue === null) {
       console.warn(
         "No se pudieron encontrar ambos valores (actual y previsión) para la Inflación."
       );
-      return NextResponse.json<ScrapedData>( // Tipado explícito de la respuesta
+      return NextResponse.json<ScrapedData>(
         {
-          error:
-            "No se pudieron extraer los datos de Inflación. El formato de la página puede haber cambiado o los valores no están presentes.",
-          variable: "Inflación", // Proporcionar todas las propiedades de ScrapedData
+          error: "No se pudieron extraer los datos de Inflación.",
+          variable: "Inflación",
           actualValue: null,
           forecastValue: null,
         },
@@ -131,21 +119,18 @@ export async function GET() {
       );
     }
 
-    // Si se encuentran los valores, devolverlos en la respuesta
     return NextResponse.json<ScrapedData>({
-      // Tipado explícito de la respuesta
       variable: "Inflación",
       actualValue,
       forecastValue,
     });
   } catch (error: unknown) {
-    // Captura y maneja cualquier error durante el proceso de scraping
-    const errorMessage = error instanceof Error ? error.message : String(error); // Manejo seguro del tipo 'unknown'
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Error al hacer scraping de Inflación:", errorMessage);
-    return NextResponse.json<ScrapedData>( // Tipado explícito de la respuesta para el error
+    return NextResponse.json<ScrapedData>(
       {
-        error: `Fallo al obtener datos de Inflación: ${errorMessage}. Verifique la URL o la conexión.`,
-        variable: "Inflación", // Proporcionar todas las propiedades de ScrapedData
+        error: `Fallo al obtener datos de Inflación: ${errorMessage}.`,
+        variable: "Inflación",
         actualValue: null,
         forecastValue: null,
       },
