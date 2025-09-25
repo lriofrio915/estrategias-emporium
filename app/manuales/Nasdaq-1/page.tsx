@@ -191,7 +191,7 @@ export default function ManualNasdaqPage() {
             width={500}
             height={200}
           />
-          <h3 className="text-xs text-center">Gráfico 1. Variables Fundamentales para la Determinarción del Sesgo General del Mercado</h3>
+          <h3 className="text-xs text-center">Gráfico 1. Variables Fundamentales para la Determinación del Sesgo General del Mercado</h3>
           <h4 className="text-xl font-semibold text-gray-800 mt-5 mb-3">
             2.2. Análisis Técnico de Rupturas (Breakouts)
           </h4>

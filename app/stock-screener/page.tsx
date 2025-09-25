@@ -1,38 +1,13 @@
 import StockScreenerSearch from "@/components/StockScreenerSearch/StockScreenerSearch";
 import TopMovers from "@/components/TopMovers/TopMovers";
 import Recommendations from "@/components/Recommendations/Recommendations";
+import { getDayMovers, getRecommendations } from "@/app/actions/marketActions";
 
-// Datos de ejemplo para los movers (en un futuro, esto vendrá de una Server Action)
-const DUMMY_GAINERS_DAILY = [
-  { symbol: "GNR", name: "Gainers Inc.", price: 150.25, changePercent: 15.2 },
-  { symbol: "UPWD", name: "Upward Corp", price: 88.4, changePercent: 12.1 },
-  { symbol: "SKY", name: "SkyHigh Stocks", price: 210.0, changePercent: 10.5 },
-];
-const DUMMY_LOSERS_DAILY = [
-  { symbol: "FALL", name: "Falling Co.", price: 45.5, changePercent: -18.3 },
-  { symbol: "DROP", name: "Dropdown Inc.", price: 72.1, changePercent: -14.2 },
-  {
-    symbol: "LOW",
-    name: "Lowland Industries",
-    price: 95.8,
-    changePercent: -9.8,
-  },
-];
-const DUMMY_GAINERS_YTD = [
-  { symbol: "ROCKET", name: "Rocket Corp", price: 350.0, changePercent: 120.5 },
-  {
-    symbol: "BOOM",
-    name: "Boom Industries",
-    price: 190.75,
-    changePercent: 98.2,
-  },
-];
-const DUMMY_LOSERS_YTD = [
-  { symbol: "SINK", name: "Sinker Ltd.", price: 12.3, changePercent: -75.4 },
-  { symbol: "CRASH", name: "Crash & Co.", price: 25.6, changePercent: -60.1 },
-];
+export default async function StockScreenerPage() {
+  // Obtenemos los datos en el servidor al cargar la página
+  const { gainers, losers, error: moversError } = await getDayMovers();
+  const recommendations = await getRecommendations();
 
-export default function StockScreenerPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -46,26 +21,32 @@ export default function StockScreenerPage() {
           </p>
         </div>
 
-        {/* Tu barra de búsqueda original ahora vive en su propio componente */}
         <StockScreenerSearch />
 
-        {/* Nuevas Secciones */}
+        {moversError && (
+          <div
+            className="my-8 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md"
+            role="alert"
+          >
+            <p className="font-bold">Aviso de Mercado</p>
+            <p>{moversError}</p>
+          </div>
+        )}
+
         <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
           <TopMovers
-            title="Top Ganadores"
+            title="Top Ganadores del Día"
+            movers={gainers}
             type="gainers"
-            dailyMovers={DUMMY_GAINERS_DAILY}
-            ytdMovers={DUMMY_GAINERS_YTD}
           />
           <TopMovers
-            title="Grandes Ofertas"
+            title="Grandes Ofertas del Día"
+            movers={losers}
             type="losers"
-            dailyMovers={DUMMY_LOSERS_DAILY}
-            ytdMovers={DUMMY_LOSERS_YTD}
           />
         </div>
 
-        <Recommendations />
+        <Recommendations initialRecommendations={recommendations} />
       </div>
     </div>
   );

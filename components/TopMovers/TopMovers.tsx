@@ -4,29 +4,24 @@ import { useState } from "react";
 import { ArrowUpIcon, ArrowDownIcon } from "@heroicons/react/24/solid";
 import Link from "next/link";
 
-// Tipos para los datos de ejemplo
+// SOLUCIÓN: Interfaz actualizada para coincidir con los datos de yahoo-finance2
 interface Mover {
   symbol: string;
-  name: string;
-  price: number;
-  changePercent: number;
+  longName?: string; // Es opcional
+  regularMarketPrice: number;
+  regularMarketChangePercent: number;
 }
 
+// SOLUCIÓN: La interfaz de Props ahora espera una única prop `movers`
 interface Props {
   title: string;
   type: "gainers" | "losers";
-  dailyMovers: Mover[];
-  ytdMovers: Mover[];
+  movers: Mover[];
 }
 
-export default function TopMovers({
-  title,
-  type,
-  dailyMovers,
-  ytdMovers,
-}: Props) {
-  const [timeframe, setTimeframe] = useState<"daily" | "ytd">("daily");
-  const movers = timeframe === "daily" ? dailyMovers : ytdMovers;
+export default function TopMovers({ title, type, movers }: Props) {
+  // Eliminamos la lógica de 'daily' vs 'ytd' por ahora para simplificar y corregir el error.
+  // El componente ahora simplemente muestra los datos que recibe.
 
   const isGainer = type === "gainers";
   const textColor = isGainer ? "text-green-600" : "text-red-600";
@@ -43,31 +38,10 @@ export default function TopMovers({
           {icon}
           <span className="ml-2">{title}</span>
         </h3>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setTimeframe("daily")}
-            className={`px-3 py-1 text-sm rounded-md ${
-              timeframe === "daily"
-                ? "bg-indigo-600 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
-          >
-            Día
-          </button>
-          <button
-            onClick={() => setTimeframe("ytd")}
-            className={`px-3 py-1 text-sm rounded-md ${
-              timeframe === "ytd"
-                ? "bg-indigo-600 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
-          >
-            Año
-          </button>
-        </div>
+        {/* Aquí podrías volver a agregar los botones de timeframe en el futuro */}
       </div>
       <ul className="divide-y divide-gray-200">
-        {movers.map((mover) => (
+        {movers.slice(0, 10).map((mover) => (
           <li
             key={mover.symbol}
             className="py-3 flex justify-between items-center"
@@ -79,17 +53,17 @@ export default function TopMovers({
               >
                 {mover.symbol}
               </Link>
-              <p className="text-sm text-gray-500 truncate max-w-[150px]">
-                {mover.name}
+              <p className="text-sm text-gray-500 truncate max-w-[150px] sm:max-w-xs">
+                {mover.longName || mover.symbol}
               </p>
             </div>
             <div className="text-right">
               <p className="font-semibold text-gray-900">
-                ${mover.price.toFixed(2)}
+                ${mover.regularMarketPrice.toFixed(2)}
               </p>
               <p className={`text-sm font-semibold ${textColor}`}>
                 {isGainer ? "+" : ""}
-                {mover.changePercent.toFixed(2)}%
+                {mover.regularMarketChangePercent.toFixed(2)}%
               </p>
             </div>
           </li>
