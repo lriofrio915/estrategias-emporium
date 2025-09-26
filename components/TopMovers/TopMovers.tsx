@@ -1,28 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { ArrowUpIcon, ArrowDownIcon } from "@heroicons/react/24/solid";
 import Link from "next/link";
+import { MoverQuote } from "@/types/api";
 
-// SOLUCIÓN: Interfaz actualizada para coincidir con los datos de yahoo-finance2
-interface Mover {
-  symbol: string;
-  longName?: string; // Es opcional
-  regularMarketPrice: number;
-  regularMarketChangePercent: number;
-}
-
-// SOLUCIÓN: La interfaz de Props ahora espera una única prop `movers`
+// Interfaz para las props del componente
 interface Props {
   title: string;
   type: "gainers" | "losers";
-  movers: Mover[];
+  movers: MoverQuote[];
 }
 
 export default function TopMovers({ title, type, movers }: Props) {
-  // Eliminamos la lógica de 'daily' vs 'ytd' por ahora para simplificar y corregir el error.
-  // El componente ahora simplemente muestra los datos que recibe.
-
   const isGainer = type === "gainers";
   const textColor = isGainer ? "text-green-600" : "text-red-600";
   const icon = isGainer ? (
@@ -38,7 +27,6 @@ export default function TopMovers({ title, type, movers }: Props) {
           {icon}
           <span className="ml-2">{title}</span>
         </h3>
-        {/* Aquí podrías volver a agregar los botones de timeframe en el futuro */}
       </div>
       <ul className="divide-y divide-gray-200">
         {movers.slice(0, 10).map((mover) => (
@@ -59,11 +47,11 @@ export default function TopMovers({ title, type, movers }: Props) {
             </div>
             <div className="text-right">
               <p className="font-semibold text-gray-900">
-                ${mover.regularMarketPrice.toFixed(2)}
+                ${(mover.regularMarketPrice ?? 0).toFixed(2)}
               </p>
               <p className={`text-sm font-semibold ${textColor}`}>
                 {isGainer ? "+" : ""}
-                {mover.regularMarketChangePercent.toFixed(2)}%
+                {(mover.regularMarketChangePercent ?? 0).toFixed(2)}%
               </p>
             </div>
           </li>
