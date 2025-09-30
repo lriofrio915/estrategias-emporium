@@ -9,6 +9,13 @@ import {
   RiskScores,
   DcfValuationResult,
 } from "@/types/stock-scanner";
+import {
+  calculateFundamentalScores,
+  calculateRiskScores,
+  calculateDcfValuation,
+} from "@/lib/utils/financialCalculations";
+
+// Importación de componentes de UI
 import SearchBar from "@/components/stock-scanner/SearchBar";
 import MetricCard from "@/components/stock-scanner/MetricCard";
 import StockPriceChart from "@/components/stock-scanner/StockPriceChart";
@@ -29,14 +36,6 @@ import {
   BuildingIcon,
   ScalesIcon,
 } from "@/components/stock-scanner/Icons";
-import {
-  mockCompanyData,
-  mockAdvancedAnalysisData,
-  mockAiAnalysis,
-  mockFundamentalScores,
-  mockRiskScores,
-  mockDcfValuationResult,
-} from "@/lib/stock-scanner/mock-data";
 
 export default function StockScannerPage() {
   const [companyData, setCompanyData] = useState<CompanyData | null>(null);
@@ -64,28 +63,42 @@ export default function StockScannerPage() {
     setCurrentTicker(ticker.toUpperCase());
     setHasSearched(true);
 
-    // --- SIMULACIÓN DE LLAMADA A LA API ---
-    setTimeout(() => {
-      if (ticker.toUpperCase() === "ERROR") {
-        setError(
-          "No se pudo encontrar el ticker solicitado. Inténtelo de nuevo."
+    try {
+      const response = await fetch(`/api/stock-analysis/${ticker}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.error || `Error ${response.status} al contactar la API.`
         );
-        setIsLoading(false);
-        return;
       }
+      const data = await response.json();
 
-      // Usamos los datos de muestra para poblar el estado
-      setCompanyData(mockCompanyData);
-      setAdvancedData(mockAdvancedAnalysisData);
-      setAiAnalysis(mockAiAnalysis);
+      setCompanyData(data.companyData);
+      setAdvancedData(data.advancedData);
+      setAiAnalysis(data.aiAnalysis);
+    } catch (e: unknown) {
+      // CORRECCIÓN 1: de 'any' a 'unknown'
+      // Verificamos si el error es una instancia de Error para acceder a 'message'
+      if (e instanceof Error) {
+        setError(
+          e.message || "Ocurrió un error inesperado al obtener los datos."
+        );
+      } else {
+        setError("Ocurrió un error inesperado al obtener los datos.");
+      }
+    } finally {
       setIsLoading(false);
-    }, 3000);
+    }
   }, []);
 
   const fundamentalScores: FundamentalScores | null = useMemo(() => {
     if (!companyData || !advancedData) return null;
-    // En una implementación real: return calculateFundamentalScores(companyData, advancedData);
-    return mockFundamentalScores;
+    try {
+      return calculateFundamentalScores(companyData, advancedData);
+    } catch (e) {
+      console.error("Error calculating fundamental scores:", e);
+      return null;
+    }
   }, [companyData, advancedData]);
 
   const riskAnalysisResult: {
@@ -93,16 +106,53 @@ export default function StockScannerPage() {
     error: string | null;
   } = useMemo(() => {
     if (!advancedData) return { scores: null, error: null };
-    // En una implementación real: return calculateRiskScores(advancedData);
-    return { scores: mockRiskScores, error: null };
+    try {
+      const scores = calculateRiskScores(advancedData);
+      return { scores, error: null };
+    } catch (e: unknown) {
+      // CORRECCIÓN 2: de 'any' a 'unknown'
+      let errorMessage =
+        "Un error desconocido ocurrió al calcular las puntuaciones de riesgo.";
+      // Verificamos si el error es una instancia de Error
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      }
+      console.error("Error calculating risk scores:", errorMessage);
+      return { scores: null, error: errorMessage };
+    }
   }, [advancedData]);
 
   useEffect(() => {
     if (advancedData && companyData) {
-      // En una implementación real: const valuation = calculateDcfValuation(...);
-      setDcfResult({ valuation: mockDcfValuationResult, error: null });
+      try {
+        if (advancedData.historicalFcf.length < 2) {
+          throw new Error(
+            "No hay suficientes datos históricos de Flujo de Caja Libre para una proyección fiable."
+          );
+        }
+        const valuation = calculateDcfValuation(
+          advancedData,
+          companyData.keyMetrics.currentPrice,
+          companyData
+        );
+        setDcfResult({ valuation, error: null });
+      } catch (e: unknown) {
+        // CORRECCIÓN 3: de 'any' a 'unknown'
+        console.error("Error calculating DCF:", e);
+        // Verificamos si el error es una instancia de Error
+        const errorMessage =
+          e instanceof Error
+            ? e.message
+            : "No se pudo calcular la valoración DCF.";
+        setDcfResult({
+          valuation: null,
+          error: errorMessage,
+        });
+      }
     }
   }, [advancedData, companyData]);
+
+  // Las funciones renderWelcomeState, renderLoadingState, y renderErrorState se mantienen igual
 
   const renderWelcomeState = () => (
     <div className="text-center py-20 px-6">
@@ -124,7 +174,7 @@ export default function StockScannerPage() {
         Generando Informe Financiero...
       </h2>
       <p className="mt-2 text-lg text-slate-400">
-        Estamos recopilando y procesando los datos. Esto puede tardar un
+        La IA está recopilando y procesando los datos. Esto puede tardar un
         momento.
       </p>
     </div>
@@ -151,7 +201,6 @@ export default function StockScannerPage() {
             ? renderErrorState()
             : companyData && (
                 <div className="space-y-8 animate-fade-in">
-                  {/* Header */}
                   <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
                     <h2 className="text-3xl font-bold text-slate-100">
                       {companyData.profile.name} ({companyData.profile.ticker})
@@ -165,7 +214,6 @@ export default function StockScannerPage() {
                     </p>
                   </div>
 
-                  {/* Key Metrics */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <MetricCard
                       title="Precio Actual"
@@ -217,7 +265,6 @@ export default function StockScannerPage() {
                     />
                   </div>
 
-                  {/* Charts */}
                   <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
                     <div className="lg:col-span-3">
                       <StockPriceChart data={companyData.historicalPrices} />
@@ -227,13 +274,11 @@ export default function StockScannerPage() {
                     </div>
                   </div>
 
-                  {/* AI Analysis & Financial Statements */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <AiAnalysis analysis={aiAnalysis} />
                     <FinancialStatementTabs data={companyData} />
                   </div>
 
-                  {/* Advanced Analysis Sections */}
                   <div className="space-y-8 pt-8 border-t-2 border-slate-700/50">
                     {fundamentalScores ? (
                       <FundamentalAnalysis
@@ -292,21 +337,3 @@ export default function StockScannerPage() {
     </div>
   );
 }
-
-// Añadimos una pequeña animación de entrada en globals.css
-// Asegúrate de que tu `globals.css` tenga lo siguiente:
-/*
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-@layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-in-out;
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-}
-*/
