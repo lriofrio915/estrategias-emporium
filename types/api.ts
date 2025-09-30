@@ -312,6 +312,8 @@ export interface QuoteSummaryResult {
 export interface ApiAssetItem {
   ticker: string;
   data: QuoteSummaryResult;
+  earningsGrowth?: number | null;
+  regularMarketPrice?: number | null;
 }
 
 export interface ApiResponse {

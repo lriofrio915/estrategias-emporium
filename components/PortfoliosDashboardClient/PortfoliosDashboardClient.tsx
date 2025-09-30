@@ -18,7 +18,6 @@ interface Props {
 export default function PortfoliosDashboardClient({
   portfolios: initialPortfolios,
 }: Props) {
-  // El estado local se sincroniza con las props para reflejar actualizaciones
   const [portfolios, setPortfolios] = useState(initialPortfolios);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const router = useRouter();

@@ -170,7 +170,6 @@ export default function PortfolioDetailPageClient({
     setIsSubmitting(true);
     setError(null);
     try {
-      // **CORRECCIÓN:** Se envía solo los datos que la Server Action espera.
       await createCartera({
         portfolioSlug: initialPortfolio.slug,
         name: newCarteraName,
