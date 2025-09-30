@@ -210,11 +210,11 @@ export default function Navbar({ portfolios }: NavbarProps) {
                   Recomendaciones
                 </Link>
                 <Link
-                  href="/stock-screener"
+                  href="/stock-scanner"
                   className="block px-4 py-2 text-sm text-white hover:bg-[#2A4A7E] transition-colors duration-200"
                   onClick={closeAllMenus}
                 >
-                  Stock Screener
+                  Stock Scanner
                 </Link>
                 <Link
                   href="/recession-scanner-stocks"
@@ -412,11 +412,11 @@ export default function Navbar({ portfolios }: NavbarProps) {
             Recomendaciones
           </Link>
           <Link
-            href="/stock-screener"
+            href="/stock-scanner"
             className="block text-white hover:text-gray-300 px-3 py-2 rounded-md text-base font-medium pl-6"
             onClick={closeAllMenus}
           >
-            Stock Screener
+            Stock Scanner
           </Link>
           <Link
             href="/recession-scanner-stocks"
