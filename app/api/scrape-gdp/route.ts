@@ -39,19 +39,48 @@ export async function GET() {
     }
 
     // Lógica 2: Fallback buscando en el texto de la página
+    const pageText = $("body").text();
     if (actualValue === null) {
-      const pageText = $("body").text();
-      // Ampliar la expresión regular para el valor actual
+      // Expresión regular actualizada para el valor actual
       const actualMatch = pageText.match(
-        /(?:grew an annualized|rose|increased|revised(?: slightly)? higher to|grew at an annualized rate of)\s+([\d.]+?)%/i
+        /(?:expanded an annualized|grew an annualized|rose|increased|revised(?: slightly)? higher to|grew at an annualized rate of)\s+([\d.]+?)%/i
       );
       if (actualMatch && actualMatch[1]) {
         actualValue = parseFloat(actualMatch[1]);
       }
     }
 
+    // Lógica para encontrar la previsión (estimación):
+    // Nueva lógica para capturar "second estimate"
+    const secondEstimateMatch = pageText.match(
+      /(?:than|of)\s+([\d.]+?)%\s+in the second estimate/i
+    );
+    if (secondEstimateMatch && secondEstimateMatch[1]) {
+      forecastValue = parseFloat(secondEstimateMatch[1]);
+    } else {
+      // Lógica existente como fallback
+      const firstEstimateMatch = pageText.match(
+        /first estimate of\s+([\d.]+?)%/i
+      );
+      if (firstEstimateMatch && firstEstimateMatch[1]) {
+        forecastValue = parseFloat(firstEstimateMatch[1]);
+      } else if (
+        actualValue !== null &&
+        pageText.includes("aligning with market expectations")
+      ) {
+        forecastValue = actualValue;
+      } else {
+        const forecastExplicitMatch = pageText.match(
+          /(?:expectations of a|forecast of a|beating expectations of a)\s+([\d.]+?)%/i
+        );
+        if (forecastExplicitMatch && forecastExplicitMatch[1]) {
+          forecastValue = parseFloat(forecastExplicitMatch[1]);
+        }
+      }
+    }
+
     // Lógica 3: Buscar en la tabla como último recurso si las otras fallan
-    if (actualValue === null) {
+    if (actualValue === null || forecastValue === null) {
       $(".table-responsive .table-hover tbody tr").each((i, el) => {
         const variableName = $(el).find("td a").first().text().trim();
         if (variableName.includes("GDP Growth Rate")) {
@@ -59,44 +88,19 @@ export async function GET() {
             .find("td")
             .map((j, td) => $(td).text().trim())
             .get();
-          if (values[1]) {
+          if (values[1] && actualValue === null) {
             actualValue = parseFloat(
               values[1].replace("%", "").replace(",", ".")
             );
           }
-          if (values[2]) {
+          if (values[2] && forecastValue === null) {
             forecastValue = parseFloat(
               values[2].replace("%", "").replace(",", ".")
             );
           }
-          return false;
+          return false; // Detener el bucle si se encuentran los valores
         }
       });
-    }
-
-    // Lógica para encontrar la previsión:
-    const pageText = $("body").text();
-
-    // Nueva lógica para capturar la "first estimate"
-    const firstEstimateMatch = pageText.match(
-      /first estimate of\s+([\d.]+?)%/i
-    );
-    if (firstEstimateMatch && firstEstimateMatch[1]) {
-      forecastValue = parseFloat(firstEstimateMatch[1]);
-    } else if (
-      actualValue !== null &&
-      pageText.includes("aligning with market expectations")
-    ) {
-      // Si no hay una primera estimación, buscar la frase de "expectativas del mercado"
-      forecastValue = actualValue;
-    } else {
-      // Fallback para buscar una previsión explícita si las frases anteriores no están presentes
-      const forecastExplicitMatch = pageText.match(
-        /(?:expectations of a|forecast of a|beating expectations of a)\s+([\d.]+?)%/i
-      );
-      if (forecastExplicitMatch && forecastExplicitMatch[1]) {
-        forecastValue = parseFloat(forecastExplicitMatch[1]);
-      }
     }
 
     if (actualValue === null || forecastValue === null) {
