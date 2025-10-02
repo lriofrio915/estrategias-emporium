@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    serverActions: {
+      // Aumentamos el límite de tamaño del cuerpo para permitir archivos más grandes
+      bodySizeLimit: "5mb",
+    },
+  },
 };
 
 export default nextConfig;

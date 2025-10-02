@@ -1,7 +1,11 @@
-// app/stock-screener/page.tsx
+// app/recomendaciones/page.tsx
 "use client";
 
-import { useState, useEffect, useCallback, useTransition } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 import TopMovers from "@/components/TopMovers/TopMovers";
 import Recommendations from "@/components/Recommendations/Recommendations";
 import {
@@ -11,7 +15,7 @@ import {
 } from "@/app/actions/marketActions";
 import { MoverQuote } from "@/types/api";
 import { Recommendation } from "@/types/market";
-// Importamos StockScreenerSearch (asumo que existe)
+// Eliminado: import LoadingSpinner from "@/components/Shared/LoadingSpinner"; // Ya no se usa
 import StockScreenerSearch from "@/components/StockScreenerSearch/StockScreenerSearch";
 
 // Definimos el tipo para los datos de los movers
@@ -21,62 +25,129 @@ type MoversData = {
   error: string | null;
 };
 
-export default function RecommendationsPage() {
+// --- Componente de Carga de Datos de Mercado (Cliente) ---
+function MarketDataFetcher({ view }: { view: "1D" | "YTD" }) {
+  const [movers, setMovers] = useState<MoversData>({
+    gainers: [],
+    losers: [],
+    error: null,
+  });
+  const [isLoadingMovers, setIsLoadingMovers] = useState(true);
+
+  const fetchMovers = useCallback(async () => {
+    setIsLoadingMovers(true);
+    try {
+      // Los datos son objetos de respuesta de Server Actions; se usa 'e' en el catch del Server Action
+      // Aquí 'e' es capturado en la promesa, no en el scope local.
+      const data = view === "1D" ? await getDayMovers() : await getYtdMovers();
+      setMovers(data);
+    } catch {
+      setMovers({
+        gainers: [],
+        losers: [],
+        error: "Error al cargar los movers.",
+      });
+    } finally {
+      setIsLoadingMovers(false);
+    }
+  }, [view]);
+
+  useEffect(() => {
+    fetchMovers();
+  }, [fetchMovers]);
+
+  if (isLoadingMovers) {
+    return (
+      <div className="text-center text-gray-500">
+        <div className="inline-flex items-center px-6 py-3 bg-white rounded-lg shadow-md">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+          <span className="text-blue-600 font-medium">Cargando movers...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {movers.error && (
+        <div
+          className="my-8 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md"
+          role="alert"
+        >
+          <p className="font-bold">Aviso de Mercado</p>
+          <p>{movers.error}</p>
+        </div>
+      )}
+      <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <TopMovers
+          title={view === "1D" ? "Top Ganadores del Día" : "Top Ganadores YTD"}
+          movers={movers.gainers}
+          type="gainers"
+        />
+        <TopMovers
+          title={
+            view === "1D" ? "Grandes Ofertas del Día" : "Grandes Ofertas YTD"
+          }
+          movers={movers.losers}
+          type="losers"
+        />
+      </div>
+    </>
+  );
+}
+
+// Componente principal de la página (Client Component)
+export default function RecommendationsPageWrapper() {
   const [view, setView] = useState<"1D" | "YTD">("1D");
-  const [dayMovers, setDayMovers] = useState<MoversData>({
-    gainers: [],
-    losers: [],
-    error: null,
+  const [recommendationsData, setRecommendationsData] = useState<{
+    recommendations: Recommendation[];
+    totalPages: number;
+    totalCount: number;
+    loading: boolean;
+  }>({
+    recommendations: [],
+    totalPages: 0,
+    totalCount: 0,
+    loading: true,
   });
-  const [ytdMovers, setYtdMovers] = useState<MoversData>({
-    gainers: [],
-    losers: [],
-    error: null,
-  });
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // Transición para el estado de carga de las recomendaciones (CRUD/Refresh)
-  const [isRecommendationsUpdating, startRecommendationsTransition] =
-    useTransition();
+  // ELIMINADO: [isRecommendationsUpdating, startRecommendationsTransition] - No se usan
 
-  // Función unificada para obtener solo las recomendaciones
-  const fetchRecommendations = useCallback(async () => {
-    startRecommendationsTransition(async () => {
-      try {
-        const data = await getRecommendations();
-        setRecommendations(data);
-      } catch (e) {
-        console.error("Fallo al recargar recomendaciones:", e);
-      }
-    });
+  // Función unificada para obtener la primera página de recomendaciones (inicial)
+  const fetchInitialRecommendations = useCallback(async () => {
+    setRecommendationsData((prev) => ({ ...prev, loading: true }));
+    try {
+      const result = await getRecommendations(1);
+      setRecommendationsData({
+        recommendations: result.recommendations,
+        totalPages: result.totalPages,
+        totalCount: result.totalCount,
+        loading: false,
+      });
+    } catch (e) {
+      console.error("Fallo al cargar recomendaciones iniciales:", e);
+      setRecommendationsData((prev) => ({ ...prev, loading: false }));
+    }
   }, []);
 
-  // Efecto para la carga inicial de TODOS los datos (Movers y Recomendaciones)
+  // Efecto para la carga inicial de las recomendaciones (solo la primera vez)
   useEffect(() => {
-    async function loadInitialData() {
-      setLoading(true);
-      try {
-        const [dayMoversData, ytdMoversData, recommendationsData] =
-          await Promise.all([
-            getDayMovers(),
-            getYtdMovers(),
-            getRecommendations(),
-          ]);
+    fetchInitialRecommendations();
+  }, [fetchInitialRecommendations]);
 
-        setDayMovers(dayMoversData);
-        setYtdMovers(ytdMoversData);
-        setRecommendations(recommendationsData);
-      } catch (e) {
-        console.error("Fallo al cargar datos iniciales:", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadInitialData();
-  }, [fetchRecommendations]); // Dependencia en fetchRecommendations asegura la consistencia
-
-  const moversError = view === "1D" ? dayMovers.error : ytdMovers.error;
+  // Si la carga inicial está en curso, mostramos un spinner general
+  if (recommendationsData.loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 flex justify-center items-center">
+        <div className="inline-flex items-center px-6 py-3 bg-white rounded-lg shadow-md">
+          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+          <span className="text-blue-600 font-medium">
+            Cargando datos iniciales...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
@@ -88,11 +159,11 @@ export default function RecommendationsPage() {
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Busca acciones y analiza las tendencias del mercado.
           </p>
-          {/* Componente Recommendations ahora recibe la función de recarga */}
+          {/* Componente Recommendations ahora recibe los datos y la paginación */}
           <Recommendations
-            recommendations={recommendations}
-            fetchRecommendations={fetchRecommendations}
-            isRecommendationsLoading={loading || isRecommendationsUpdating}
+            initialRecommendations={recommendationsData.recommendations}
+            initialTotalPages={recommendationsData.totalPages}
+            initialTotalCount={recommendationsData.totalCount}
           />
         </div>
 
@@ -120,47 +191,8 @@ export default function RecommendationsPage() {
           </button>
         </div>
 
-        {loading ? (
-          <div className="text-center text-gray-500">
-            {/* Indicador de carga para los Movers */}
-            <div className="inline-flex items-center px-6 py-3 bg-white rounded-lg shadow-md">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
-              <span className="text-blue-600 font-medium">
-                Cargando datos del mercado...
-              </span>
-            </div>
-          </div>
-        ) : (
-          <>
-            {moversError && (
-              <div
-                className="my-8 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md"
-                role="alert"
-              >
-                <p className="font-bold">Aviso de Mercado</p>
-                <p>{moversError}</p>
-              </div>
-            )}
-            <div className="mt-12 grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <TopMovers
-                title={
-                  view === "1D" ? "Top Ganadores del Día" : "Top Ganadores YTD"
-                }
-                movers={view === "1D" ? dayMovers.gainers : ytdMovers.gainers}
-                type="gainers"
-              />
-              <TopMovers
-                title={
-                  view === "1D"
-                    ? "Grandes Ofertas del Día"
-                    : "Grandes Ofertas YTD"
-                }
-                movers={view === "1D" ? dayMovers.losers : ytdMovers.losers}
-                type="losers"
-              />
-            </div>
-          </>
-        )}
+        <MarketDataFetcher view={view} />
+
         <StockScreenerSearch />
       </div>
     </div>

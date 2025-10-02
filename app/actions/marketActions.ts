@@ -1,15 +1,31 @@
+// app/actions/marketActions.ts
 "use server";
 
 import { revalidatePath } from "next/cache";
 import yahooFinance from "yahoo-finance2";
-// SOLUCIÓN: Corregida la ruta de importación y el nombre del import
 import dbConnect from "@/lib/mongodb";
 import Recommendation, { IRecommendation } from "@/models/Recommendation";
+import { uploadFileToGCS, deleteFileFromGCS } from "@/lib/gcs";
 import {
   Recommendation as ClientRecommendation,
-  NewRecommendationData,
 } from "@/types/market";
 import { MoverQuote } from "@/types/api";
+
+const ROWS_PER_PAGE = 10;
+
+// Tipos de retorno para las acciones con paginación
+interface GetRecommendationsResult {
+  recommendations: ClientRecommendation[];
+  totalPages: number;
+  totalCount: number;
+  error?: string;
+}
+interface ActionResponse {
+  success?: boolean;
+  error?: string;
+  updated?: number;
+  message?: string;
+}
 
 // Lista de tickers para YTD (sin cambios)
 const sp500Tickers = [
@@ -186,8 +202,7 @@ const sp500Tickers = [
   "FCX",
 ];
 
-// --- ACCIONES DE MERCADO (MOVERS) ---
-
+// --- FUNCIONES DE MERCADO (Sin cambios) ---
 export async function getDayMovers(): Promise<{
   gainers: MoverQuote[];
   losers: MoverQuote[];
@@ -269,55 +284,227 @@ export async function getYtdMovers(): Promise<{
 
 // --- ACCIONES CRUD PARA RECOMENDACIONES ---
 
-export async function createRecommendation(data: NewRecommendationData) {
+/**
+ * Obtiene recomendaciones con paginación.
+ */
+export async function getRecommendations(
+  page: number = 1
+): Promise<GetRecommendationsResult> {
+  await dbConnect();
+  const skip = (page - 1) * ROWS_PER_PAGE;
+
   try {
-    await dbConnect(); // SOLUCIÓN: Usar el nombre de función correcto
-    const quoteResult = await yahooFinance.quote(data.ticker);
+    const totalCount = await Recommendation.countDocuments();
+    const recommendations = await Recommendation.find({})
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(ROWS_PER_PAGE)
+      .exec();
 
-    const quote = Array.isArray(quoteResult) ? quoteResult[0] : quoteResult;
+    const totalPages = Math.ceil(totalCount / ROWS_PER_PAGE);
 
-    if (!quote || typeof quote.regularMarketPrice !== "number") {
-      throw new Error(`Ticker "${data.ticker}" no válido o sin precio.`);
-    }
-
-    const newRecommendation = new Recommendation({
-      ...data,
-      assetName: quote.longName || data.ticker,
-      currentPrice: quote.regularMarketPrice,
-    });
-
-    await newRecommendation.save();
-    revalidatePath("/stock-screener");
-    return { success: true };
-  } catch (error) {
     return {
-      error:
-        error instanceof Error
-          ? error.message
-          : "No se pudo crear la recomendación.",
+      recommendations: JSON.parse(JSON.stringify(recommendations)),
+      totalPages,
+      totalCount,
+    };
+  } catch (error) {
+    console.error("Error fetching recommendations:", error);
+    return {
+      recommendations: [],
+      totalPages: 0,
+      totalCount: 0,
+      error: "Fallo al cargar las recomendaciones con paginación.",
     };
   }
 }
 
-export async function getRecommendations(): Promise<ClientRecommendation[]> {
+/**
+ * Crea una recomendación (sin requerir archivo).
+ */
+export async function createRecommendation(
+  formData: FormData
+): Promise<ActionResponse> {
+  await dbConnect();
+
   try {
-    await dbConnect(); // SOLUCIÓN: Usar el nombre de función correcto
-    const recommendations = await Recommendation.find({}).sort({
-      recommendationDate: -1,
+    // 1. Extraer campos de texto
+    const ticker = formData.get("ticker") as string;
+    const buyPrice = parseFloat(formData.get("buyPrice") as string); // P. Rec. (P. Compra)
+    const targetPrice = parseFloat(formData.get("targetPrice") as string);
+    const responsible = formData.get("responsible") as string;
+    const reportFile = formData.get("reportFile") as File;
+
+    if (!ticker || isNaN(buyPrice) || isNaN(targetPrice) || !responsible) {
+      return {
+        success: false,
+        error: "Campos de texto incompletos o inválidos.",
+      };
+    }
+
+    // 2. Obtener el precio actual
+    const quoteResult = await yahooFinance.quote(ticker);
+    const quote = Array.isArray(quoteResult) ? quoteResult[0] : quoteResult;
+
+    if (!quote || typeof quote.regularMarketPrice !== "number") {
+      throw new Error(`Ticker "${ticker}" no válido o sin precio.`);
+    }
+
+    // 3. Procesar y subir el archivo (si existe)
+    let reportUrl: string | null = null;
+    let reportMimeType: string | null = null;
+
+    if (reportFile && reportFile.size > 0) {
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+      if (!allowedTypes.includes(reportFile.type)) {
+        return {
+          success: false,
+          error: "Tipo de archivo no permitido. Solo PDF o Word (doc/docx).",
+        };
+      }
+
+      const fileBuffer = Buffer.from(await reportFile.arrayBuffer());
+      reportUrl = await uploadFileToGCS(
+        fileBuffer,
+        reportFile.type,
+        reportFile.name
+      );
+      reportMimeType = reportFile.type;
+    }
+
+    // 4. Crear el nuevo documento en MongoDB
+    await Recommendation.create({
+      ticker: ticker.toUpperCase(),
+      purchasePrice: buyPrice, // <-- Lo que se muestra en P. Rec.
+      buyPrice: buyPrice, // <-- Mantengo para compatibilidad con código antiguo
+      currentPrice: quote.regularMarketPrice,
+      targetPrice: targetPrice,
+      responsible,
+      assetName: quote.longName || ticker,
+      reportUrl,
+      reportMimeType,
     });
-    return JSON.parse(JSON.stringify(recommendations));
+
+    revalidatePath("/recomendaciones");
+
+    return { success: true, message: "Recomendación creada con éxito." };
   } catch (error) {
-    console.error("Error fetching recommendations:", error);
-    return [];
+    console.error("Error creating recommendation:", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Error desconocido al crear la recomendación.";
+    return {
+      error: errorMessage,
+    };
   }
 }
 
+/**
+ * NUEVA ACCIÓN: Actualiza los campos de una recomendación existente y maneja la subida de archivo.
+ */
+export async function updateRecommendationData(
+  id: string,
+  formData: FormData
+): Promise<ActionResponse> {
+  await dbConnect();
+  try {
+    const existingRec = await Recommendation.findById(id);
+    if (!existingRec) {
+      return {
+        success: false,
+        error: "Recomendación no encontrada para actualizar.",
+      };
+    }
+
+    // 1. Extraer campos de texto
+    const ticker = (formData.get("ticker") as string).toUpperCase();
+    const purchasePrice = parseFloat(formData.get("purchasePrice") as string);
+    const targetPrice = parseFloat(formData.get("targetPrice") as string);
+    const responsible = formData.get("responsible") as string;
+    const removeFile = formData.get("removeFile") === "true";
+    const reportFile = formData.get("reportFile") as File;
+
+    if (!ticker || isNaN(purchasePrice) || isNaN(targetPrice) || !responsible) {
+      return {
+        success: false,
+        error: "Campos de texto incompletos o inválidos.",
+      };
+    }
+
+    const updateData: Partial<IRecommendation> = {
+      ticker,
+      purchasePrice,
+      buyPrice: purchasePrice, // Mantener buyPrice sincronizado para evitar el problema de N/A en código antiguo
+      targetPrice,
+      responsible,
+      reportUrl: existingRec.reportUrl, // Inicializar con el valor existente
+      reportMimeType: existingRec.reportMimeType,
+    };
+
+    // 2. Manejar la eliminación del archivo existente
+    if (removeFile && existingRec.reportUrl) {
+      await deleteFileFromGCS(existingRec.reportUrl);
+      updateData.reportUrl = null;
+      updateData.reportMimeType = null;
+    }
+
+    // 3. Manejar la subida de un NUEVO archivo
+    if (reportFile && reportFile.size > 0) {
+      const allowedTypes = [
+        "application/pdf",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ];
+      if (!allowedTypes.includes(reportFile.type)) {
+        return {
+          success: false,
+          error: "Tipo de archivo no permitido. Solo PDF o Word (doc/docx).",
+        };
+      }
+
+      // Si hay un nuevo archivo, elimina el anterior (si existe)
+      if (existingRec.reportUrl) {
+        await deleteFileFromGCS(existingRec.reportUrl);
+      }
+
+      const fileBuffer = Buffer.from(await reportFile.arrayBuffer());
+      updateData.reportUrl = await uploadFileToGCS(
+        fileBuffer,
+        reportFile.type,
+        reportFile.name
+      );
+      updateData.reportMimeType = reportFile.type;
+    }
+
+    // 4. Actualizar el documento en la base de datos
+    await Recommendation.findByIdAndUpdate(id, updateData, { new: true });
+
+    // 5. Revalidar
+    revalidatePath("/recomendaciones");
+
+    return { success: true, message: "Recomendación actualizada con éxito." };
+  } catch (error) {
+    console.error("Error updating recommendation data:", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Error desconocido al actualizar la recomendación.";
+    return { success: false, error: errorMessage };
+  }
+}
+
+// --- RESTO DE ACCIONES (Sin cambios) ---
 export async function updateRecommendationStatus(
   id: string,
   status: "COMPRAR" | "MANTENER" | "VENDER"
-) {
+): Promise<ActionResponse> {
   try {
-    await dbConnect(); // SOLUCIÓN: Usar el nombre de función correcto
+    await dbConnect();
     const recommendation = await Recommendation.findById(id);
     if (!recommendation) throw new Error("Recomendación no encontrada.");
 
@@ -333,8 +520,8 @@ export async function updateRecommendationStatus(
           : recommendation.currentPrice;
     }
 
-    await Recommendation.findByIdAndUpdate(id, updateData);
-    revalidatePath("/stock-screener");
+    await Recommendation.findByIdAndUpdate(id, updateData, { new: true });
+    revalidatePath("/recomendaciones");
     return { success: true };
   } catch (error) {
     return {
@@ -343,51 +530,73 @@ export async function updateRecommendationStatus(
   }
 }
 
-export async function deleteRecommendation(id: string) {
+export async function deleteRecommendation(
+  id: string
+): Promise<ActionResponse> {
+  await dbConnect();
   try {
-    await dbConnect(); // SOLUCIÓN: Usar el nombre de función correcto
+    const recommendation = await Recommendation.findById(id);
+
+    if (!recommendation) {
+      return { success: false, error: "Recomendación no encontrada." };
+    }
+
+    if (recommendation.reportUrl) {
+      await deleteFileFromGCS(recommendation.reportUrl);
+    }
+
     await Recommendation.findByIdAndDelete(id);
-    revalidatePath("/stock-screener");
+
+    revalidatePath("/recomendaciones");
     return { success: true };
   } catch (error) {
+    console.error("Error deleting recommendation:", error);
     return {
-      error: error instanceof Error ? error.message : "No se pudo eliminar.",
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudo eliminar la recomendación.",
     };
   }
 }
 
-export async function refreshRecommendationPrices() {
+export async function refreshRecommendationPrices(): Promise<ActionResponse> {
+  await dbConnect();
   try {
-    await dbConnect(); // SOLUCIÓN: Usar el nombre de función correcto
     const recommendations = await Recommendation.find({
       status: { $ne: "VENDER" },
-    });
+    }).select("_id ticker");
 
     const updates = recommendations.map(async (rec) => {
       try {
         const quoteResult = await yahooFinance.quote(rec.ticker);
         const quote = Array.isArray(quoteResult) ? quoteResult[0] : quoteResult;
+
         if (typeof quote?.regularMarketPrice === "number") {
-          rec.currentPrice = quote.regularMarketPrice;
-          await rec.save();
+          await Recommendation.updateOne(
+            { _id: rec._id },
+            { $set: { currentPrice: quote.regularMarketPrice } }
+          );
         }
       } catch (err) {
         console.error(
-          `No se pudo actualizar el precio para ${rec.ticker}:`,
+          `No se pudo actualizar el precio para ${rec.ticker} (Probable: Yahoo Finance):`,
           err
         );
       }
     });
 
     await Promise.all(updates);
-    revalidatePath("/stock-screener");
+    revalidatePath("/recomendaciones");
     return { success: true, updated: recommendations.length };
   } catch (error) {
-    console.error("Error al refrescar precios:", error);
-    throw new Error(
-      error instanceof Error
-        ? error.message
-        : "No se pudieron refrescar los precios."
-    );
+    console.error("Error al refrescar precios (General):", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "No se pudieron refrescar los precios.",
+    };
   }
 }

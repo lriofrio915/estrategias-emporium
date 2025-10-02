@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.17.1",
     "@google-cloud/translate": "^9.2.0",
     "@google/genai": "^1.21.0",
     "@google/generative-ai": "^0.24.1",
@@ -29,6 +30,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/busboy": "^1.5.4",
     "@types/cheerio": "^0.22.35",
     "@types/node": "^20",
     "@types/react": "^19",
