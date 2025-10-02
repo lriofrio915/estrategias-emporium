@@ -24,6 +24,8 @@ import {
   updateRecommendationData,
 } from "@/app/actions/marketActions";
 import { Recommendation, RecommendationStatus } from "@/types/market";
+// NUEVO: Importamos el modal
+import SuccessModal from "@/components/Shared/SuccessModal";
 
 const ROWS_PER_PAGE = 10;
 
@@ -67,7 +69,6 @@ const getGainLossPercent = (rec: Recommendation) => {
   const finalPrice =
     rec.status === "VENDER" && rec.sellPrice ? rec.sellPrice : rec.currentPrice;
 
-  // Usa purchasePrice como principal, con fallback a buyPrice
   const pRec = rec.purchasePrice || rec.buyPrice || 0;
 
   if (pRec === 0) return 0;
@@ -128,12 +129,7 @@ function NewRecommendationForm({
         )}
       </button>
       {showForm && (
-        <form
-          action={handleSubmit}
-          ref={formRef}
-          className="mt-4 space-y-4"
-          // Se elimina encType="multipart/form-data" para evitar el error de React
-        >
+        <form action={handleSubmit} ref={formRef} className="mt-4 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <input
               type="text"
@@ -314,7 +310,6 @@ function EditRecommendationForm({
             </label>
             <label className="block">
               <span className="text-sm font-medium text-gray-700">P. Rec.</span>
-              {/* CORRECCIÓN 3: Uso seguro de purchasePrice o buyPrice */}
               <input
                 type="number"
                 name="purchasePrice"
@@ -333,7 +328,6 @@ function EditRecommendationForm({
               <span className="text-sm font-medium text-gray-700">
                 P. Objetivo
               </span>
-              {/* CORRECCIÓN 3: Uso seguro de targetPrice */}
               <input
                 type="number"
                 name="targetPrice"
@@ -460,6 +454,9 @@ export default function Recommendations({
   const [currentPage, setCurrentPage] = useState(1);
   const [error, setError] = useState<string | null>(null);
 
+  // NUEVO ESTADO: Mensaje del modal de éxito
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
   const [editingRec, setEditingRec] = useState<Recommendation | null>(null);
 
   const [isPending, startTransition] = useTransition();
@@ -503,6 +500,8 @@ export default function Recommendations({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
 
+  // --- Manejadores de CRUD/Actions ---
+
   const handleStatusChange = (id: string, newStatus: RecommendationStatus) => {
     setPendingUpdateIds((prev) => [...prev, id]);
 
@@ -516,6 +515,8 @@ export default function Recommendations({
       if (result.error) {
         alert(result.error);
       } else {
+        // Muestra modal de éxito
+        setSuccessMessage(`Estado actualizado a ${newStatus} con éxito.`);
         fetchRecommendations();
       }
     });
@@ -536,6 +537,8 @@ export default function Recommendations({
         if (result.error) {
           alert(result.error);
         } else {
+          // Muestra modal de éxito
+          setSuccessMessage("Recomendación eliminada con éxito.");
           const targetPage =
             recommendations.length === 1 && currentPage > 1
               ? currentPage - 1
@@ -551,22 +554,32 @@ export default function Recommendations({
       try {
         const result: ActionResponse = await refreshRecommendationPrices();
         if (result.error) throw new Error(result.error);
-        alert(`Precios actualizados para ${result.updated} activos.`);
+
+        // Muestra modal de éxito
+        setSuccessMessage(
+          `Precios actualizados para ${result.updated} activos.`
+        );
+        fetchRecommendations(currentPage);
       } catch (e: unknown) {
         const err = e as Error;
         alert(err.message || "Error al actualizar precios.");
       }
-      fetchRecommendations(currentPage);
     });
   };
 
   const handleNewRecommendationSuccess = () => {
+    // Muestra modal de éxito
+    setSuccessMessage("Recomendación creada con éxito.");
     fetchRecommendations(1);
   };
 
   const handleEditSuccess = () => {
+    // Muestra modal de éxito
+    setSuccessMessage("Recomendación editada y guardada con éxito.");
     fetchRecommendations(currentPage);
   };
+
+  // --- Render Helpers ---
 
   const getStatusColor = (status: RecommendationStatus) => {
     switch (status) {
@@ -681,9 +694,14 @@ export default function Recommendations({
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
                       <Link
                         href={`/stock-screener/${rec.ticker.toLowerCase()}`}
-                        className="font-semibold text-blue-600 hover:underline"
+                        className="font-semibold text-blue-600 hover:underline flex flex-col items-start"
                       >
-                        {rec.ticker}
+                        <span className="text-base font-semibold">
+                          {rec.ticker}
+                        </span>
+                        <span className="text-xs font-normal text-gray-500">
+                          {rec.assetName}
+                        </span>
                       </Link>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
@@ -692,7 +710,6 @@ export default function Recommendations({
                       )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-right text-gray-500">
-                      {/* CORRECCIÓN 4: Muestra purchasePrice o buyPrice para compatibilidad */}
                       {formatCurrency(rec.purchasePrice || rec.buyPrice)}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-[#0A2342]">
@@ -809,6 +826,15 @@ export default function Recommendations({
           onSuccess={handleEditSuccess}
           setError={setError}
           currentError={error}
+        />
+      )}
+
+      {/* MODAL DE ÉXITO (Reemplazo de alert()) */}
+      {successMessage && (
+        <SuccessModal
+          message={successMessage}
+          onClose={() => setSuccessMessage(null)}
+          title="Operación Exitosa"
         />
       )}
     </div>
