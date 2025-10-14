@@ -14,6 +14,7 @@ import {
   TrashIcon,
   PlusCircleIcon,
   ChevronDownIcon,
+  ChevronUpIcon, // Agregado para el ícono de ordenamiento
   FolderIcon,
   ArrowRightIcon,
   XMarkIcon,
@@ -26,6 +27,7 @@ interface AssetData {
   name: string;
   sector: string;
   industry: string;
+  country: string;
   price: number | null;
   dailyChange: number | null;
 }
@@ -52,16 +54,19 @@ export default function PortfolioDetailPageClient({
 }: Props) {
   const [assets, setAssets] = useState<AssetData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [newTickerInput, setNewTickerInput] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [sortBy, setSortBy] = useState<"sector" | "industry" | "none">("none");
+  // El tipo de sortBy ahora incluye "country"
+  const [sortBy, setSortBy] = useState<
+    "sector" | "industry" | "country" | "none"
+  >("none");
   const router = useRouter();
 
   // Estados para Modales
   const [isCarteraModalOpen, setIsCarteraModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [newCarteraName, setNewCarteraName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [newTickerInput, setNewTickerInput] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchAssetData = useCallback(async (tickers: string[]) => {
     if (tickers.length === 0) {
@@ -85,6 +90,7 @@ export default function PortfolioDetailPageClient({
           name: item.data.price?.longName || item.ticker,
           sector: item.data.assetProfile?.sector || "N/A",
           industry: item.data.assetProfile?.industry || "N/A",
+          country: item.data.assetProfile?.country || "N/A", // Extracción del País
           price: getRawValue(item.data.price?.regularMarketPrice),
           dailyChange: getRawValue(item.data.price?.regularMarketChangePercent),
         })
@@ -103,6 +109,7 @@ export default function PortfolioDetailPageClient({
     fetchAssetData(initialPortfolio.tickers);
   }, [initialPortfolio.tickers, fetchAssetData]);
 
+  // Lógica de ordenamiento actualizada para incluir 'country'
   const sortedAssets = useMemo(() => {
     const sortableAssets = [...assets];
     if (sortBy === "sector")
@@ -111,8 +118,24 @@ export default function PortfolioDetailPageClient({
       return sortableAssets.sort((a, b) =>
         a.industry.localeCompare(b.industry)
       );
+    if (sortBy === "country")
+      return sortableAssets.sort((a, b) => a.country.localeCompare(b.country));
     return sortableAssets;
   }, [assets, sortBy]);
+
+  // Funciones de utilidad para el toggle de ordenamiento
+  const toggleSortBy = (column: "sector" | "industry" | "country") => {
+    setSortBy(sortBy === column ? "none" : column);
+  };
+
+  // Función para renderizar el ícono de ordenamiento
+  const renderSortIcon = (column: "sector" | "industry" | "country") => {
+    return sortBy === column ? (
+      <ChevronUpIcon className="h-4 w-4 inline ml-1" />
+    ) : (
+      <ChevronDownIcon className="h-4 w-4 inline ml-1" />
+    );
+  };
 
   const handleAddTicker = async (e: FormEvent) => {
     e.preventDefault();
@@ -151,6 +174,7 @@ export default function PortfolioDetailPageClient({
     setIsSubmitting(true);
     try {
       await deletePortfolio(initialPortfolio.slug);
+      // Redirige a la página principal de portafolios (asumiendo que es /portafolio)
       router.push("/portafolio");
       router.refresh();
     } catch (err) {
@@ -234,7 +258,7 @@ export default function PortfolioDetailPageClient({
                 />
                 <button
                   type="submit"
-                  className="bg-[#0A2342] text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 flex items-center justify-center disabled:bg-gray-400"
+                  className="bg-[#0A2342] text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 flex items-center justify-center disabled:bg-gray-400 transition-colors"
                   disabled={isSubmitting}
                 >
                   <PlusCircleIcon className="h-5 w-5 mr-2" />
@@ -243,7 +267,7 @@ export default function PortfolioDetailPageClient({
               </form>
               <button
                 onClick={() => setIsDeleteModalOpen(true)}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center w-full sm:w-auto"
+                className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center w-full sm:w-auto transition-colors"
               >
                 <TrashIcon className="h-5 w-5 mr-2" />
                 Eliminar Portafolio
@@ -255,39 +279,53 @@ export default function PortfolioDetailPageClient({
             <h3 className="text-xl font-bold text-gray-800 mb-4">
               Activos en Seguimiento
             </h3>
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white">
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full bg-white divide-y divide-gray-200">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
+                    {/* COLUMNA: N° */}
+                    <th className="py-3 px-3 text-center text-xs font-semibold text-gray-700 uppercase">
+                      N°
+                    </th>
+                    {/* COLUMNA: ACTIVO */}
+                    <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase">
                       Activo
                     </th>
+                    {/* COLUMNA: SECTOR (CON ORDENAMIENTO) */}
                     <th
-                      className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase cursor-pointer"
-                      onClick={() =>
-                        setSortBy(sortBy === "sector" ? "none" : "sector")
-                      }
+                      className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer whitespace-nowrap"
+                      onClick={() => toggleSortBy("sector")}
                     >
-                      Sector <ChevronDownIcon className="h-4 w-4 inline" />
+                      Sector {renderSortIcon("sector")}
                     </th>
+                    {/* COLUMNA: INDUSTRIA (CON ORDENAMIENTO) */}
                     <th
-                      className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase cursor-pointer"
-                      onClick={() =>
-                        setSortBy(sortBy === "industry" ? "none" : "industry")
-                      }
+                      className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer whitespace-nowrap"
+                      onClick={() => toggleSortBy("industry")}
                     >
-                      Industria <ChevronDownIcon className="h-4 w-4 inline" />
+                      Industria {renderSortIcon("industry")}
                     </th>
-                    <th className="py-3 px-6 text-right text-sm font-semibold text-gray-700 uppercase">
+                    {/* NUEVA COLUMNA: PAÍS (CON ORDENAMIENTO) */}
+                    <th
+                      className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase cursor-pointer whitespace-nowrap"
+                      onClick={() => toggleSortBy("country")}
+                    >
+                      País {renderSortIcon("country")}
+                    </th>
+                    {/* COLUMNA: PRECIO */}
+                    <th className="py-3 px-6 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">
                       Precio
                     </th>
-                    <th className="py-3 px-6 text-right text-sm font-semibold text-gray-700 uppercase">
+                    {/* COLUMNA: CAMBIO % (Corregido a una línea) */}
+                    <th className="py-3 px-6 text-right text-xs font-semibold text-gray-700 uppercase whitespace-nowrap">
                       Cambio %
                     </th>
-                    <th className="py-3 px-6 text-center text-sm font-semibold text-gray-700 uppercase">
+                    {/* COLUMNA: INFORME */}
+                    <th className="py-3 px-6 text-center text-xs font-semibold text-gray-700 uppercase">
                       Informe
                     </th>
-                    <th className="py-3 px-6 text-center text-sm font-semibold text-gray-700 uppercase">
+                    {/* COLUMNA: ACCIONES */}
+                    <th className="py-3 px-6 text-center text-xs font-semibold text-gray-700 uppercase">
                       Acciones
                     </th>
                   </tr>
@@ -296,7 +334,7 @@ export default function PortfolioDetailPageClient({
                   {loading ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={9} // 9 columnas en total
                         className="text-center py-8 text-gray-500"
                       >
                         Cargando activos...
@@ -305,27 +343,39 @@ export default function PortfolioDetailPageClient({
                   ) : sortedAssets.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={9} // 9 columnas en total
                         className="text-center py-8 text-gray-500"
                       >
                         No hay activos en la lista.
                       </td>
                     </tr>
                   ) : (
-                    sortedAssets.map((asset) => (
+                    sortedAssets.map((asset, index) => (
                       <tr key={asset.ticker} className="hover:bg-gray-50">
-                        <td className="py-4 px-6 font-medium">
+                        {/* CELDA DE NUMERACIÓN */}
+                        <td className="py-4 px-3 text-sm text-center text-gray-600">
+                          {index + 1}
+                        </td>
+                        {/* CELDA DE ACTIVO */}
+                        <td className="py-4 px-3 font-medium">
                           <p className="text-gray-900">{asset.name}</p>
                           <p className="text-gray-500 text-xs">
                             {asset.ticker}
                           </p>
                         </td>
-                        <td className="py-4 px-6 text-sm text-gray-800">
+                        {/* CELDAS DE SECTOR */}
+                        <td className="py-4 px-3 text-sm text-left text-gray-800">
                           {asset.sector}
                         </td>
-                        <td className="py-4 px-6 text-sm text-gray-800">
+                        {/* CELDAS DE INDUSTRIA */}
+                        <td className="py-4 px-3 text-sm text-left text-gray-800">
                           {asset.industry}
                         </td>
+                        {/* CELDA DE PAÍS */}
+                        <td className="py-4 px-3 text-sm text-left text-gray-800">
+                          {asset.country}
+                        </td>
+                        {/* CELDAS EXISTENTES */}
                         <td className="py-4 px-6 text-sm text-right text-gray-800">
                           {asset.price ? `$${asset.price.toFixed(2)}` : "N/A"}
                         </td>
@@ -349,7 +399,7 @@ export default function PortfolioDetailPageClient({
                         <td className="py-4 px-6 text-sm text-center">
                           <button
                             onClick={() => handleDeleteTicker(asset.ticker)}
-                            className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"
+                            className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors"
                           >
                             <TrashIcon className="h-5 w-5" />
                           </button>
@@ -450,7 +500,7 @@ export default function PortfolioDetailPageClient({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:bg-indigo-300"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-md font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 transition-colors"
                 >
                   {isSubmitting ? "Creando..." : "Crear"}
                 </button>

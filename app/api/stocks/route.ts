@@ -160,8 +160,6 @@ export async function GET(request: Request) {
 
     // Se construye un array de promesas, una para cada llamada individual
     const promises = tickersArray.map(async (ticker) => {
-      console.log(`LOG: Attempting to fetch data for ticker: ${ticker}`);
-
       const baseModules: QuoteSummaryModule[] = ["price", "assetProfile"];
       const fullModules: QuoteSummaryModule[] = [
         "price",
@@ -204,10 +202,6 @@ export async function GET(request: Request) {
             date: item.date.toISOString().split("T")[0],
           }));
         }
-
-        console.log(
-          `LOG: Successful fetch for ${ticker}. Returning formatted data.`
-        );
 
         return {
           ticker: ticker,

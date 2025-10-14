@@ -16,10 +16,13 @@ import {
   ArrowUturnLeftIcon,
 } from "@heroicons/react/24/outline";
 
-// Interfaces para los tipos de datos
+// Interfaces para los tipos de datos (Actualizadas)
 interface AssetData {
   ticker: string;
   name: string;
+  sector: string | null; // Nuevo campo para Sector
+  industry: string | null; // Nuevo campo para Industria
+  country: string | null; // Nuevo campo para País
   price: number | null;
   dailyChange: number | null;
 }
@@ -71,6 +74,11 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
         (item: ApiAssetItem): AssetData => ({
           ticker: item.ticker,
           name: item.data.price?.longName || item.ticker,
+          // --- NUEVOS CAMPOS EXTRAÍDOS ---
+          sector: item.data.assetProfile?.sector || null,
+          industry: item.data.assetProfile?.industry || null,
+          country: item.data.assetProfile?.country || null,
+          // --------------------------------
           price: getRawValue(item.data.price?.regularMarketPrice),
           dailyChange: getRawValue(item.data.price?.regularMarketChangePercent),
         })
@@ -97,6 +105,7 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
     setIsSubmitting(true);
     setError(null);
     try {
+      // Nota: addTickerToCartera refresca la ruta, lo cual dispara fetchAssetData de nuevo
       await addTickerToCartera(portfolio.slug, cartera.slug, tickerToAdd);
       setNewTickerInput("");
       router.refresh();
@@ -143,6 +152,7 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
 
   const getPriceColor = (change: number | null) => {
     if (change === null) return "text-gray-500";
+    // Compara directamente el cambio porcentual como decimal, no multiplicado por 100
     return change > 0 ? "text-green-600" : "text-red-600";
   };
 
@@ -153,7 +163,7 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
           <header className="mb-12 mt-8">
             <Link
               href={`/portafolio/${portfolio.slug}`}
-              className="text-blue-600 hover:underline flex items-center mb-4"
+              className="text-blue-600 hover:underline flex items-center mb-4 w-fit"
             >
               <ArrowUturnLeftIcon className="h-5 w-5 mr-2" />
               Volver a {portfolio.name}
@@ -195,7 +205,7 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
                 />
                 <button
                   type="submit"
-                  className="bg-[#0A2342] text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 flex items-center justify-center disabled:bg-gray-400"
+                  className="bg-[#0A2342] text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 flex items-center justify-center disabled:bg-gray-400 transition-colors"
                   disabled={isSubmitting}
                 >
                   <PlusCircleIcon className="h-5 w-5 mr-2" />
@@ -204,30 +214,45 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
               </form>
               <button
                 onClick={() => setIsDeleteModalOpen(true)}
-                className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center w-full sm:w-auto"
+                className="px-6 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 flex items-center justify-center w-full sm:w-auto transition-colors"
               >
                 <TrashIcon className="h-5 w-5 mr-2" />
                 Eliminar Cartera
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="min-w-full bg-white">
+            <div className="overflow-x-auto rounded-lg border border-gray-200">
+              <table className="min-w-full bg-white divide-y divide-gray-200">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="py-3 px-6 text-left text-sm font-semibold text-gray-700 uppercase">
+                    {/* NUEVA COLUMNA DE NUMERACIÓN */}
+                    <th className="py-3 px-3 text-center text-xs font-semibold text-gray-700 uppercase">
+                      N°
+                    </th>
+                    <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase">
                       Activo
                     </th>
-                    <th className="py-3 px-6 text-right text-sm font-semibold text-gray-700 uppercase">
+                    {/* NUEVAS COLUMNAS DE DETALLE */}
+                    <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                      Sector
+                    </th>
+                    <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                      Industria
+                    </th>
+                    <th className="py-3 px-3 text-left text-xs font-semibold text-gray-700 uppercase">
+                      País
+                    </th>
+                    {/* COLUMNAS EXISTENTES */}
+                    <th className="py-3 px-6 text-right text-xs font-semibold text-gray-700 uppercase">
                       Precio
                     </th>
-                    <th className="py-3 px-6 text-right text-sm font-semibold text-gray-700 uppercase">
+                    <th className="py-3 px-6 text-right text-xs font-semibold text-gray-700 uppercase">
                       Cambio %
                     </th>
-                    <th className="py-3 px-6 text-center text-sm font-semibold text-gray-700 uppercase">
+                    <th className="py-3 px-6 text-center text-xs font-semibold text-gray-700 uppercase">
                       Informe
                     </th>
-                    <th className="py-3 px-6 text-center text-sm font-semibold text-gray-700 uppercase">
+                    <th className="py-3 px-6 text-center text-xs font-semibold text-gray-700 uppercase">
                       Acciones
                     </th>
                   </tr>
@@ -236,7 +261,7 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
                   {loading ? (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={9} // Colspan ajustado a 9 (4 viejas + 5 nuevas)
                         className="text-center py-8 text-gray-500"
                       >
                         Cargando activos...
@@ -245,21 +270,37 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
                   ) : assets.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={9} // Colspan ajustado a 9
                         className="text-center py-8 text-gray-500"
                       >
                         Esta cartera aún no tiene activos.
                       </td>
                     </tr>
                   ) : (
-                    assets.map((asset) => (
+                    assets.map((asset, index) => (
                       <tr key={asset.ticker} className="hover:bg-gray-50">
-                        <td className="py-4 px-6 font-medium">
+                        {/* CELDA DE NUMERACIÓN */}
+                        <td className="py-4 px-3 text-sm text-center text-gray-600">
+                          {index + 1}
+                        </td>
+                        {/* CELDA DE ACTIVO */}
+                        <td className="py-4 px-3 font-medium">
                           <p className="text-gray-900">{asset.name}</p>
                           <p className="text-gray-500 text-xs">
                             {asset.ticker}
                           </p>
                         </td>
+                        {/* CELDAS DE SECTOR, INDUSTRIA, PAÍS */}
+                        <td className="py-4 px-3 text-sm text-left text-gray-800">
+                          {asset.sector || "N/A"}
+                        </td>
+                        <td className="py-4 px-3 text-sm text-left text-gray-800">
+                          {asset.industry || "N/A"}
+                        </td>
+                        <td className="py-4 px-3 text-sm text-left text-gray-800">
+                          {asset.country || "N/A"}
+                        </td>
+                        {/* CELDAS EXISTENTES */}
                         <td className="py-4 px-6 text-sm text-right text-gray-800">
                           {asset.price ? `$${asset.price.toFixed(2)}` : "N/A"}
                         </td>
@@ -283,7 +324,7 @@ export default function CarteraDetailPageClient({ portfolio, cartera }: Props) {
                         <td className="py-4 px-6 text-sm text-center">
                           <button
                             onClick={() => handleDeleteTicker(asset.ticker)}
-                            className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100"
+                            className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition-colors"
                           >
                             <TrashIcon className="h-5 w-5" />
                           </button>
